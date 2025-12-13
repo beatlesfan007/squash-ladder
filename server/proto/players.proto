@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package players;
+
+option go_package = "squash-ladder/server/gen/players";
+
+// Player represents a player in the squash ladder
+message Player {
+  int32 id = 1;    // Unique player identifier
+  string name = 2; // Player name
+  int32 rank = 3;  // Current rank in the ladder (1 is highest)
+}
+
+// ListPlayersRequest is empty for now
+message ListPlayersRequest {
+}
+
+// ListPlayersResponse contains a list of players ordered by rank
+message ListPlayersResponse {
+  repeated Player players = 1;
+}
+
+// PlayersService provides access to the squash ladder
+service PlayersService {
+  // ListPlayers returns all players ordered by rank
+  rpc ListPlayers(ListPlayersRequest) returns (ListPlayersResponse);
+}

@@ -1,0 +1,3 @@
+# Build settings
+build --incompatible_strict_action_env
+build --enable_platform_specific_config

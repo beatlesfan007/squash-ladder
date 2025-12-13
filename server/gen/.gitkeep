@@ -1,0 +1,3 @@
+# This directory will contain generated Goa code
+# Run: cd server && goa gen squash-ladder/server/design
+
