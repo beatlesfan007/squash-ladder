@@ -30,7 +30,7 @@ func main() {
 		// Set CORS headers
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Grpc-Web")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Grpc-Web, X-User-Agent, X-Grpc-Web-Type, Grpc-Timeout")
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -81,4 +81,3 @@ func main() {
 	log.Printf("Starting gRPC-Web server on port %s", port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), handler))
 }
-

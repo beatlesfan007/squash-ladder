@@ -6,7 +6,6 @@ go_library(
     importpath = "squash-ladder/server/handlers",
     deps = [
         "//server/proto:players_go_proto",
-        "//server/proto:players_grpc_go_proto",
     ],
     visibility = ["//visibility:public"],
 )
@@ -17,10 +16,8 @@ go_library(
     importpath = "squash-ladder/server/cmd/server",
     deps = [
         "//server/proto:players_go_proto",
-        "//server/proto:players_grpc_go_proto",
-        "//server/handlers",
-        "@org_golang_x_net//http",
-        "@org_golang_google_grpc//",
+        ":handlers_lib",
+        "@org_golang_google_grpc//:go_default_library",
         "@com_github_improbable_eng_grpc_web//go/grpcweb",
     ],
 )

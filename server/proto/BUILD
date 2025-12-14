@@ -1,6 +1,5 @@
+load("@rules_proto_grpc_go//:defs.bzl", "go_grpc_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_go//go:def.bzl", "go_library")
-load("@rules_go//proto:def.bzl", "go_proto_library")
 
 # Expose the proto file for use in genrules
 filegroup(
@@ -15,18 +14,10 @@ proto_library(
     visibility = ["//visibility:public"],
 )
 
-go_proto_library(
+go_grpc_library(
     name = "players_go_proto",
     importpath = "squash-ladder/server/gen/players",
-    proto = ":players_proto",
-    visibility = ["//visibility:public"],
-)
-
-go_proto_library(
-    name = "players_grpc_go_proto",
-    importpath = "squash-ladder/server/gen/players",
-    proto = ":players_proto",
-    compilers = ["@rules_go//proto:go_grpc"],
+    protos = [":players_proto"],
     visibility = ["//visibility:public"],
 )
 

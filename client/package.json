@@ -3,17 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
     "@improbable-eng/grpc-web": "^0.15.0",
-    "google-protobuf": "^3.21.2"
+    "google-protobuf": "^3.21.2",
+    "grpc-web": "^2.0.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
     "typescript": "^5.9.3",
     "vite": "^5.0.0",
-    "@vitejs/plugin-react": "^4.2.0"
+    "vite-plugin-commonjs": "^0.10.4"
   },
   "scripts": {
     "dev": "vite",

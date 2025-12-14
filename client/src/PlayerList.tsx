@@ -1,7 +1,7 @@
 import React from 'react'
 import './PlayerList.css'
 
-interface Player {
+export interface Player {
   id: number
   name: string
   rank: number

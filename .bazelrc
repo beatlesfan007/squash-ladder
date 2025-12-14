@@ -1,3 +1,7 @@
 # Build settings
 build --incompatible_strict_action_env
 build --enable_platform_specific_config
+
+common --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main/
+
+build --noincompatible_disallow_ctx_resolve_tools

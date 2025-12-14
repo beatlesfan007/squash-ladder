@@ -72,6 +72,33 @@ cd "$PROJECT_ROOT"
 bazel build //client/src/grpc:players_proto_ts //client/src/grpc:players_grpc_web
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}  ✓ Proto files generated (TypeScript + gRPC-Web)${NC}"
+    
+    # Copy generated files to client source so Vite can see them
+    echo -e "  ℹ Copying generated files to client/src/grpc/..."
+    cp -f bazel-bin/client/src/grpc/players_proto_ts_pb/server/proto/players_pb.d.ts client/src/grpc/
+    cp -f bazel-bin/client/src/grpc/players_proto_ts_pb/server/proto/players_pb.js client/src/grpc/
+    cp -f bazel-bin/client/src/grpc/players_grpc_web_pb/server/proto/players_grpc_web_pb.d.ts client/src/grpc/
+    cp -f bazel-bin/client/src/grpc/players_grpc_web_pb/server/proto/players_grpc_web_pb.js client/src/grpc/
+    
+    # Make files writable
+    chmod +w client/src/grpc/*.js
+    
+    # Prepend 'var exports = {};' to make CJS compatible with browser
+    echo "var exports = {};" | cat - client/src/grpc/players_pb.js > temp && mv temp client/src/grpc/players_pb.js
+    echo "var exports = {};" | cat - client/src/grpc/players_grpc_web_pb.js > temp && mv temp client/src/grpc/players_grpc_web_pb.js
+
+    # Fix: Clone proto.players if it's frozen (from ESM import) so we can extend it
+    # We use sed to insert the check after the require
+    sed -i '' 's/proto.players = require('\''\.\/players_pb.js'\'');/proto.players = require('\''\.\/players_pb.js'\''); if (!Object.isExtensible(proto.players)) { proto.players = Object.assign({}, proto.players); }/' client/src/grpc/players_grpc_web_pb.js
+
+    # Fix: Replace readStringRequireUtf8 with readString to match google-protobuf npm package
+    sed -i '' 's/readStringRequireUtf8/readString/g' client/src/grpc/players_pb.js
+
+    # Append ES exports to generated JS files for Vite compatibility
+    echo "export const { Player, ListPlayersRequest, ListPlayersResponse } = proto.players;" >> client/src/grpc/players_pb.js
+    echo "export const { PlayersServiceClient } = proto.players;" >> client/src/grpc/players_grpc_web_pb.js
+    
+    echo -e "${GREEN}  ✓ Generated files copied and patched for Vite${NC}"
 else
     echo -e "${RED}  ✗ Failed to generate proto files${NC}"
     echo -e "  ℹ Proto generation is handled by rules_proto_grpc in Bazel"
