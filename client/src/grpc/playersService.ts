@@ -14,7 +14,7 @@ export type { Player, ListPlayersRequest, ListPlayersResponse }
 
 // Create a service client instance
 // The generated client provides type-safe methods for each RPC
-const client = new PlayersServiceClient('http://localhost:8080')
+const client = new PlayersServiceClient('/players')
 
 // Service wrapper that uses the generated client
 // This provides a cleaner async/await interface over the generated client

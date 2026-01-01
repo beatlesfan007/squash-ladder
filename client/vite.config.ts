@@ -5,12 +5,11 @@ import commonjs from 'vite-plugin-commonjs'
 export default defineConfig({
   plugins: [react(), commonjs()],
   server: {
-    port: 3000,
-    host: true,
     proxy: {
       '/players': {
         target: 'http://localhost:8080',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/players/, ''),
       },
     },
   },
