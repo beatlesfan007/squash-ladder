@@ -46,10 +46,40 @@ if [ $? -eq 0 ]; then
     sed -i '' 's/readStringRequireUtf8/readString/g' client/src/grpc/players_pb.js
 
     # Append ES exports
-    echo "export const { Player, ListPlayersRequest, ListPlayersResponse } = proto.players;" >> client/src/grpc/players_pb.js
+    echo "export const { Player, ListPlayersRequest, ListPlayersResponse, AddPlayerRequest, AddPlayerResponse, RemovePlayerRequest, RemovePlayerResponse, MatchResult, AddMatchResultRequest, AddMatchResultResponse, InvalidateMatchResultRequest, InvalidateMatchResultResponse } = proto.players;" >> client/src/grpc/players_pb.js
     echo "export const { PlayersServiceClient } = proto.players;" >> client/src/grpc/players_grpc_web_pb.js
     
     echo -e "${GREEN}  ✓ Generated files prepared${NC}"
+
+    # Generate Server Go files
+    echo -e "${YELLOW}Generating proto files for server...${NC}"
+    bazel build //server/proto:players_go_proto
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}  ✓ Server proto files generated${NC}"
+        
+        # Determine the source path in bazel-bin dynamically
+        # Find the directory containing players.pb.go
+        SRC_FILE=$(find bazel-bin/server/proto -name "players.pb.go" | head -n 1)
+        if [ -z "$SRC_FILE" ]; then
+             echo -e "${RED}  Could not find players.pb.go in bazel-bin/server/proto${NC}"
+             exit 1
+        fi
+        SRC_DIR=$(dirname "$SRC_FILE")
+        
+        echo -e "  ℹ Found generated files in $SRC_DIR"
+
+        DEST_DIR="server/gen/players"
+        mkdir -p "$DEST_DIR"
+        
+        # Copy Go files
+        echo -e "  ℹ Copying generated Go files to $DEST_DIR/..."
+        cp -f "$SRC_DIR"/*.pb.go "$DEST_DIR/"
+        
+        echo -e "${GREEN}  ✓ Server files updated${NC}"
+    else
+        echo -e "${RED}  ✗ Failed to generate server proto files${NC}"
+        exit 1
+    fi
 else
     echo -e "${RED}  ✗ Failed to generate proto files${NC}"
     exit 1

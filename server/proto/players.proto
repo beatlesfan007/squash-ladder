@@ -6,22 +6,78 @@ option go_package = "squash-ladder/server/gen/players";
 
 // Player represents a player in the squash ladder
 message Player {
-  int32 id = 1;    // Unique player identifier
-  string name = 2; // Player name
-  int32 rank = 3;  // Current rank in the ladder (1 is highest)
+  string id = 1;    // Unique player identifier (changed to string for flexibility)
+  string name = 2;  // Player name
+  int32 rank = 3;   // Current rank in the ladder (1 is highest)
 }
 
 // ListPlayersRequest is empty for now
-message ListPlayersRequest {
-}
+message ListPlayersRequest {}
 
 // ListPlayersResponse contains a list of players ordered by rank
 message ListPlayersResponse {
   repeated Player players = 1;
 }
 
+message AddPlayerRequest {
+  string name = 1;
+  string player_id = 2; // Optional, can be generated if empty
+}
+
+message AddPlayerResponse {
+  Player player = 1;
+}
+
+message RemovePlayerRequest {
+  string player_id = 1;
+}
+
+message RemovePlayerResponse {
+  bool success = 1;
+}
+
+message MatchResult {
+  string player1_id = 1;
+  string player2_id = 2;
+  string winner_id = 3;
+  string score = 4; // Format: "11-5, 11-8, 9-11, 11-2" etc.
+}
+
+message AddMatchResultRequest {
+  string player1_id = 1;
+  string player2_id = 2;
+  string winner_id = 3;
+  // Individual set scores e.g. "11-5"
+  repeated string set_scores = 4; 
+}
+
+message AddMatchResultResponse {
+  bool success = 1;
+  string transaction_id = 2; // UUID of the transaction
+}
+
+message InvalidateMatchResultRequest {
+  string transaction_id = 1;
+}
+
+message InvalidateMatchResultResponse {
+  bool success = 1;
+}
+
 // PlayersService provides access to the squash ladder
 service PlayersService {
   // ListPlayers returns all players ordered by rank
   rpc ListPlayers(ListPlayersRequest) returns (ListPlayersResponse);
+  
+  // AddPlayer adds a new player to the bottom of the ladder
+  rpc AddPlayer(AddPlayerRequest) returns (AddPlayerResponse);
+  
+  // RemovePlayer removes a player from the ladder
+  rpc RemovePlayer(RemovePlayerRequest) returns (RemovePlayerResponse);
+  
+  // AddMatchResult records a match result and updates the ladder
+  rpc AddMatchResult(AddMatchResultRequest) returns (AddMatchResultResponse);
+  
+  // InvalidateMatchResult reverts a previously recorded match
+  rpc InvalidateMatchResult(InvalidateMatchResultRequest) returns (InvalidateMatchResultResponse);
 }

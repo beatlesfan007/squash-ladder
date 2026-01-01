@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 
@@ -15,11 +16,21 @@ import (
 )
 
 func main() {
+	// Initialize Ladder
+	dataDir := "data"
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		log.Fatalf("Failed to create data directory: %v", err)
+	}
+	ladder, err := handlers.NewLadder("data/transaction_log.jsonl")
+	if err != nil {
+		log.Fatalf("Failed to initialize ladder: %v", err)
+	}
+
 	// Create gRPC server
 	grpcServer := grpc.NewServer()
 
 	// Create and register players service
-	playersHandler := handlers.NewPlayersHandler()
+	playersHandler := handlers.NewPlayersHandler(ladder)
 	playerspb.RegisterPlayersServiceServer(grpcServer, playersHandler)
 
 	// Wrap gRPC server with gRPC-Web
@@ -76,6 +87,18 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
+
+	// Start standard gRPC server on port 9090 (for specialized clients/testing)
+	go func() {
+		lis, err := net.Listen("tcp", ":9090")
+		if err != nil {
+			log.Fatalf("failed to listen on :9090: %v", err)
+		}
+		log.Printf("Starting standard gRPC server on port 9090")
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("failed to serve gRPC on :9090: %v", err)
+		}
+	}()
 
 	// Start HTTP server (serves both gRPC-Web and regular HTTP)
 	log.Printf("Starting gRPC-Web server on port %s", port)

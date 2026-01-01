@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"sort"
 
 	playerspb "squash-ladder/server/gen/players"
 )
@@ -10,34 +9,56 @@ import (
 // PlayersHandler implements the PlayersService gRPC service
 type PlayersHandler struct {
 	playerspb.UnimplementedPlayersServiceServer
+	ladder *Ladder
 }
 
 // NewPlayersHandler creates a new players handler
-func NewPlayersHandler() *PlayersHandler {
-	return &PlayersHandler{}
+func NewPlayersHandler(ladder *Ladder) *PlayersHandler {
+	return &PlayersHandler{
+		ladder: ladder,
+	}
 }
 
 // ListPlayers returns all players ordered by rank
 func (h *PlayersHandler) ListPlayers(ctx context.Context, req *playerspb.ListPlayersRequest) (*playerspb.ListPlayersResponse, error) {
-	// Mock player data
-	mockPlayers := []*playerspb.Player{
-		{Id: 1, Name: "Alice Johnson", Rank: 1},
-		{Id: 2, Name: "Bob Smith", Rank: 2},
-		{Id: 3, Name: "Charlie Brown", Rank: 3},
-		{Id: 4, Name: "Diana Prince", Rank: 4},
-		{Id: 5, Name: "Eve Williams", Rank: 5},
-		{Id: 6, Name: "Frank Miller", Rank: 6},
-		{Id: 7, Name: "Grace Lee", Rank: 7},
-		{Id: 8, Name: "Henry Davis", Rank: 8},
-	}
-
-	// Sort by rank to ensure correct order
-	sort.Slice(mockPlayers, func(i, j int) bool {
-		return mockPlayers[i].Rank < mockPlayers[j].Rank
-	})
-
+	players := h.ladder.ListPlayers()
 	return &playerspb.ListPlayersResponse{
-		Players: mockPlayers,
+		Players: players,
 	}, nil
 }
 
+// AddPlayer adds a new player
+func (h *PlayersHandler) AddPlayer(ctx context.Context, req *playerspb.AddPlayerRequest) (*playerspb.AddPlayerResponse, error) {
+	player, err := h.ladder.AddPlayer(req.Name, req.PlayerId)
+	if err != nil {
+		return nil, err
+	}
+	return &playerspb.AddPlayerResponse{Player: player}, nil
+}
+
+// RemovePlayer removes a player
+func (h *PlayersHandler) RemovePlayer(ctx context.Context, req *playerspb.RemovePlayerRequest) (*playerspb.RemovePlayerResponse, error) {
+	err := h.ladder.RemovePlayer(req.PlayerId)
+	if err != nil {
+		return &playerspb.RemovePlayerResponse{Success: false}, err
+	}
+	return &playerspb.RemovePlayerResponse{Success: true}, nil
+}
+
+// AddMatchResult records a match result
+func (h *PlayersHandler) AddMatchResult(ctx context.Context, req *playerspb.AddMatchResultRequest) (*playerspb.AddMatchResultResponse, error) {
+	txID, err := h.ladder.AddMatchResult(req.Player1Id, req.Player2Id, req.WinnerId, req.SetScores)
+	if err != nil {
+		return &playerspb.AddMatchResultResponse{Success: false}, err
+	}
+	return &playerspb.AddMatchResultResponse{Success: true, TransactionId: txID}, nil
+}
+
+// InvalidateMatchResult invalidates a match result
+func (h *PlayersHandler) InvalidateMatchResult(ctx context.Context, req *playerspb.InvalidateMatchResultRequest) (*playerspb.InvalidateMatchResultResponse, error) {
+	err := h.ladder.InvalidateMatchResult(req.TransactionId)
+	if err != nil {
+		return &playerspb.InvalidateMatchResultResponse{Success: false}, err
+	}
+	return &playerspb.InvalidateMatchResultResponse{Success: true}, nil
+}

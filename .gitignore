@@ -53,3 +53,5 @@ bazel-*
 # Generated Proto files in Client
 client/src/grpc/*.js
 client/src/grpc/*.d.ts
+
+server/gen/*

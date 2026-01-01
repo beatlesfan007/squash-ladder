@@ -2,10 +2,14 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
     name = "handlers_lib",
-    srcs = ["handlers/players.go"],
+    srcs = [
+        "handlers/ladder.go",
+        "handlers/players.go",
+    ],
     importpath = "squash-ladder/server/handlers",
     deps = [
         "//server/proto:players_go_proto",
+        "@com_github_google_uuid//:uuid",
     ],
     visibility = ["//visibility:public"],
 )
