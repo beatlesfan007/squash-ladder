@@ -2,7 +2,7 @@ import React from 'react'
 import './PlayerList.css'
 
 export interface Player {
-  id: number
+  id: string
   name: string
   rank: number
 }

@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package players;
+package ladder;
 
-option go_package = "squash-ladder/server/gen/players";
+option go_package = "squash-ladder/server/gen/ladder";
 
 // Player represents a player in the squash ladder
 message Player {
@@ -64,8 +64,8 @@ message InvalidateMatchResultResponse {
   bool success = 1;
 }
 
-// PlayersService provides access to the squash ladder
-service PlayersService {
+// LadderService provides access to the squash ladder
+service LadderService {
   // ListPlayers returns all players ordered by rank
   rpc ListPlayers(ListPlayersRequest) returns (ListPlayersResponse);
   

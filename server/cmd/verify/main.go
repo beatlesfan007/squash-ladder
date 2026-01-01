@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	playerspb "squash-ladder/server/gen/players"
+	ladderpb "squash-ladder/server/gen/ladder"
 )
 
 func main() {
@@ -19,32 +19,32 @@ func main() {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
-	c := playerspb.NewPlayersServiceClient(conn)
+	c := ladderpb.NewLadderServiceClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// 1. Add Players
 	fmt.Println("Adding players...")
-	alice, err := c.AddPlayer(ctx, &playerspb.AddPlayerRequest{Name: "Alice"})
+	alice, err := c.AddPlayer(ctx, &ladderpb.AddPlayerRequest{Name: "Alice"})
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("Added Alice: %s\n", alice.Player.Id)
 
-	bob, err := c.AddPlayer(ctx, &playerspb.AddPlayerRequest{Name: "Bob"})
+	bob, err := c.AddPlayer(ctx, &ladderpb.AddPlayerRequest{Name: "Bob"})
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("Added Bob: %s\n", bob.Player.Id)
 
-	charlie, err := c.AddPlayer(ctx, &playerspb.AddPlayerRequest{Name: "Charlie"})
+	charlie, err := c.AddPlayer(ctx, &ladderpb.AddPlayerRequest{Name: "Charlie"})
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("Added Charlie: %s\n", charlie.Player.Id)
 
 	// 2. List Players
-	listResp, err := c.ListPlayers(ctx, &playerspb.ListPlayersRequest{})
+	listResp, err := c.ListPlayers(ctx, &ladderpb.ListPlayersRequest{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func main() {
 	// So Alice (old 1) -> 2. Bob (old 2) -> 3.
 	// New Order: 1. Charlie, 2. Alice, 3. Bob
 	fmt.Println("\nMatch: Charlie beats Alice (11-9, 11-8, 9-11, 11-5)")
-	_, err = c.AddMatchResult(ctx, &playerspb.AddMatchResultRequest{
+	_, err = c.AddMatchResult(ctx, &ladderpb.AddMatchResultRequest{
 		Player1Id: alice.Player.Id,
 		Player2Id: charlie.Player.Id,
 		WinnerId:  charlie.Player.Id,
@@ -71,7 +71,7 @@ func main() {
 	}
 
 	// 4. Verify Ladder
-	listResp, err = c.ListPlayers(ctx, &playerspb.ListPlayersRequest{})
+	listResp, err = c.ListPlayers(ctx, &ladderpb.ListPlayersRequest{})
 	if err != nil {
 		log.Fatal(err)
 	}

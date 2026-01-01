@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import PlayerList, { Player } from './PlayerList'
-import { playersService, Player as ProtoPlayer } from './grpc/playersService'
+import { ladderService, Player as ProtoPlayer } from './grpc/ladderService'
 import './App.css'
 
 function App() {
@@ -15,7 +15,7 @@ function App() {
   const fetchPlayers = async () => {
     try {
       setLoading(true)
-      const response = await playersService.listPlayers()
+      const response = await ladderService.listPlayers()
       // Convert proto Player messages to plain objects
       const playersList = response.getPlayersList().map((p: ProtoPlayer) => ({
         id: p.getId(),

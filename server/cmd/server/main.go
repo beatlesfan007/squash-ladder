@@ -8,8 +8,9 @@ import (
 	"net/http"
 	"os"
 
-	playerspb "squash-ladder/server/gen/players"
+	ladderpb "squash-ladder/server/gen/ladder"
 	"squash-ladder/server/handlers"
+	"squash-ladder/server/model"
 
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"google.golang.org/grpc"
@@ -21,7 +22,7 @@ func main() {
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		log.Fatalf("Failed to create data directory: %v", err)
 	}
-	ladder, err := handlers.NewLadder("data/transaction_log.jsonl")
+	ladderModel, err := model.New("data/transaction_log.jsonl")
 	if err != nil {
 		log.Fatalf("Failed to initialize ladder: %v", err)
 	}
@@ -29,9 +30,9 @@ func main() {
 	// Create gRPC server
 	grpcServer := grpc.NewServer()
 
-	// Create and register players service
-	playersHandler := handlers.NewPlayersHandler(ladder)
-	playerspb.RegisterPlayersServiceServer(grpcServer, playersHandler)
+	// Create and register ladder service
+	ladderService := handlers.NewLadderService(ladderModel)
+	ladderpb.RegisterLadderServiceServer(grpcServer, ladderService)
 
 	// Wrap gRPC server with gRPC-Web
 	wrappedGrpc := grpcweb.WrapServer(grpcServer)
@@ -50,7 +51,7 @@ func main() {
 
 		// Serve JSON REST endpoint as fallback (for client compatibility)
 		if r.URL.Path == "/api/players" && r.Method == "GET" {
-			resp, err := playersHandler.ListPlayers(r.Context(), &playerspb.ListPlayersRequest{})
+			resp, err := ladderService.ListPlayers(r.Context(), &ladderpb.ListPlayersRequest{})
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
