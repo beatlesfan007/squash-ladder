@@ -1,9 +1,10 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 go_library(
     name = "server_pkg",
     srcs = [
         "model.go",
+        "run.go",
         "service.go",
     ],
     importpath = "squash-ladder/server",
@@ -11,6 +12,8 @@ go_library(
     deps = [
         "//server/proto:ladder_go_proto",
         "@com_github_google_uuid//:uuid",
+        "@com_github_improbable_eng_grpc_web//go/grpcweb",
+        "@org_golang_google_grpc//:go_default_library",
     ],
 )
 
@@ -21,8 +24,6 @@ go_library(
     deps = [
         ":server_pkg",
         "//server/proto:ladder_go_proto",
-        "@com_github_improbable_eng_grpc_web//go/grpcweb",
-        "@org_golang_google_grpc//:go_default_library",
     ],
 )
 
@@ -32,11 +33,24 @@ go_binary(
     visibility = ["//visibility:public"],
 )
 
+go_test(
+    name = "server_test",
+    srcs = [
+        "model_test.go",
+        "service_test.go",
+    ],
+    embed = [":server_pkg"],
+    deps = [
+        "//server/proto:ladder_go_proto",
+    ],
+)
+
 go_library(
     name = "verify_lib",
     srcs = ["cmd/verify/main.go"],
     importpath = "squash-ladder/server/cmd/verify",
     deps = [
+        ":server_pkg",
         "//server/proto:ladder_go_proto",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//credentials/insecure",
@@ -55,6 +69,7 @@ go_library(
     srcs = ["cmd/verify_recent/main.go"],
     importpath = "squash-ladder/server/cmd/verify_recent",
     deps = [
+        ":server_pkg",
         "//server/proto:ladder_go_proto",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//credentials/insecure",

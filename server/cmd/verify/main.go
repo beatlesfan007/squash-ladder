@@ -4,17 +4,46 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"squash-ladder/server"
 	ladderpb "squash-ladder/server/gen/ladder"
 )
 
 func main() {
+	// Create a temporary file for the database
+	tmpfile, err := os.CreateTemp("", "ladder_verify_*.jsonl")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name()) // clean up
+	tmpfile.Close()
+
+	// Pick ports for testing
+	grpcPort := "9091"
+	httpPort := "8081"
+
+	// Start Server
+	go func() {
+		cfg := server.Config{
+			DataPath: tmpfile.Name(),
+			HTTPPort: httpPort,
+			GRPCPort: grpcPort,
+		}
+		if err := server.Run(cfg); err != nil {
+			log.Printf("Server stopped: %v", err)
+		}
+	}()
+
+	// Give it a moment to start
+	time.Sleep(1 * time.Second)
+
 	// Connect to server
-	conn, err := grpc.Dial("localhost:9090", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", grpcPort), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -65,10 +94,10 @@ func main() {
 		Player2Id: charlie.Player.Id,
 		WinnerId:  charlie.Player.Id,
 		SetScores: []*ladderpb.SetScore{
-			{Player1Points: 11, Player2Points: 9},
-			{Player1Points: 11, Player2Points: 8},
 			{Player1Points: 9, Player2Points: 11},
-			{Player1Points: 11, Player2Points: 5},
+			{Player1Points: 8, Player2Points: 11},
+			{Player1Points: 11, Player2Points: 9},
+			{Player1Points: 5, Player2Points: 11},
 		},
 	})
 	if err != nil {

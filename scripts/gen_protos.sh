@@ -42,11 +42,11 @@ if [ $? -eq 0 ]; then
     # Fix: Clone proto.ladder if it's frozen
     sed -i '' 's/proto.ladder = require('\''\.\/ladder_pb.js'\'');/proto.ladder = require('\''\.\/ladder_pb.js'\''); if (!Object.isExtensible(proto.ladder)) { proto.ladder = Object.assign({}, proto.ladder); }/' client/src/grpc/ladder_grpc_web_pb.js
 
-    # Fix: Replace readStringRequireUtf8
+    # Fix: Replace readStringRequireUtf8 (incompatibility between some versions of protobuf)
     sed -i '' 's/readStringRequireUtf8/readString/g' client/src/grpc/ladder_pb.js
 
     # Append ES exports
-    echo "export const { Player, ListPlayersRequest, ListPlayersResponse, AddPlayerRequest, AddPlayerResponse, RemovePlayerRequest, RemovePlayerResponse, MatchResult, AddMatchResultRequest, AddMatchResultResponse, InvalidateMatchResultRequest, InvalidateMatchResultResponse } = proto.ladder;" >> client/src/grpc/ladder_pb.js
+    echo "export const { Player, ListPlayersRequest, ListPlayersResponse, AddPlayerRequest, AddPlayerResponse, RemovePlayerRequest, RemovePlayerResponse, MatchResult, AddMatchResultRequest, AddMatchResultResponse, InvalidateMatchResultRequest, InvalidateMatchResultResponse, ListRecentMatchesRequest, ListRecentMatchesResponse } = proto.ladder;" >> client/src/grpc/ladder_pb.js
     echo "export const { LadderServiceClient } = proto.ladder;" >> client/src/grpc/ladder_grpc_web_pb.js
     
     echo -e "${GREEN}  ✓ Generated files prepared${NC}"
