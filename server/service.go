@@ -116,26 +116,22 @@ func ValidateScore(setScores []*ladderpb.SetScore) (int, error) {
 
 // AddMatchResult records a match result
 func (h *LadderService) AddMatchResult(ctx context.Context, req *ladderpb.AddMatchResultRequest) (*ladderpb.AddMatchResultResponse, error) {
-	if req.MatchResult == nil {
-		return &ladderpb.AddMatchResultResponse{Success: false}, fmt.Errorf("match_result is required")
-	}
-
 	// Validate score
 	// Validate score covers defaults and calculates winner
-	winnerIdx, err := ValidateScore(req.MatchResult.SetScores)
+	winnerIdx, err := ValidateScore(req.SetScores)
 	if err != nil {
 		return &ladderpb.AddMatchResultResponse{Success: false}, err
 	}
 
 	// Double check winner matches the score calculation
-	if winnerIdx == 1 && req.MatchResult.WinnerId != req.MatchResult.Player1Id {
+	if winnerIdx == 1 && req.WinnerId != req.Player1Id {
 		return &ladderpb.AddMatchResultResponse{Success: false}, fmt.Errorf("scores indicate player 1 won, but winner_id does not match player 1")
 	}
-	if winnerIdx == 2 && req.MatchResult.WinnerId != req.MatchResult.Player2Id {
+	if winnerIdx == 2 && req.WinnerId != req.Player2Id {
 		return &ladderpb.AddMatchResultResponse{Success: false}, fmt.Errorf("scores indicate player 2 won, but winner_id does not match player 2")
 	}
 
-	txID, err := h.model.AddMatchResult(req.MatchResult.Player1Id, req.MatchResult.Player2Id, req.MatchResult.WinnerId, req.MatchResult.SetScores)
+	txID, err := h.model.AddMatchResult(req.Player1Id, req.Player2Id, req.WinnerId, req.SetScores)
 	if err != nil {
 		return &ladderpb.AddMatchResultResponse{Success: false}, err
 	}
@@ -149,4 +145,15 @@ func (h *LadderService) InvalidateMatchResult(ctx context.Context, req *ladderpb
 		return &ladderpb.InvalidateMatchResultResponse{Success: false}, err
 	}
 	return &ladderpb.InvalidateMatchResultResponse{Success: true}, nil
+}
+
+// ListRecentMatches returns the last n matches
+func (h *LadderService) ListRecentMatches(ctx context.Context, req *ladderpb.ListRecentMatchesRequest) (*ladderpb.ListRecentMatchesResponse, error) {
+	matches, err := h.model.GetRecentMatches(req.Limit)
+	if err != nil {
+		return nil, err
+	}
+	return &ladderpb.ListRecentMatchesResponse{
+		Results: matches,
+	}, nil
 }

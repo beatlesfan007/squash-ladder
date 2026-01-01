@@ -412,3 +412,48 @@ func (m *Model) InvalidateMatchResult(txID string) error {
 
 	return nil
 }
+
+// GetRecentMatches returns the last n matches
+func (m *Model) GetRecentMatches(limit int32) ([]*ladderpb.MatchResult, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	results := make([]*ladderpb.MatchResult, 0)
+	count := int32(0)
+
+	// Iterate backwards through transactions
+	for i := len(m.Transactions) - 1; i >= 0; i-- {
+		if count >= limit {
+			break
+		}
+		tx := m.Transactions[i]
+		if tx.Type == TxMatchResult {
+			var p MatchResultPayload
+			if err := json.Unmarshal(tx.Payload, &p); err != nil {
+				return nil, fmt.Errorf("failed to parse match result: %v", err)
+			}
+
+			// Convert payload to proto
+			setScores := make([]*ladderpb.SetScore, len(p.SetScores))
+			for j, s := range p.SetScores {
+				setScores[j] = &ladderpb.SetScore{
+					Player1Points:  s.Player1Points,
+					Player2Points:  s.Player2Points,
+					Player1Default: s.Player1Default,
+					Player2Default: s.Player2Default,
+				}
+			}
+
+			results = append(results, &ladderpb.MatchResult{
+				Player1Id:     p.Player1ID,
+				Player2Id:     p.Player2ID,
+				WinnerId:      p.WinnerID,
+				SetScores:     setScores,
+				TimestampMs:   tx.Timestamp.UnixMilli(),
+				TransactionId: tx.ID,
+			})
+			count++
+		}
+	}
+	return results, nil
+}

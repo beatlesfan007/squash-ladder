@@ -49,3 +49,21 @@ go_binary(
     embed = [":verify_lib"],
     visibility = ["//visibility:public"],
 )
+
+go_library(
+    name = "verify_recent_lib",
+    srcs = ["cmd/verify_recent/main.go"],
+    importpath = "squash-ladder/server/cmd/verify_recent",
+    deps = [
+        "//server/proto:ladder_go_proto",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "verify_recent",
+    embed = [":verify_recent_lib"],
+    visibility = ["//visibility:public"],
+)

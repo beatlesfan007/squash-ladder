@@ -49,10 +49,15 @@ message MatchResult {
   string winner_id = 3;
   // Individual set scores
   repeated SetScore set_scores = 4;
+  int64 timestamp_ms = 5;
+  string transaction_id = 6;
 }
 
 message AddMatchResultRequest {
-  MatchResult match_result = 1;
+  string player1_id = 1;
+  string player2_id = 2;
+  string winner_id = 3;
+  repeated SetScore set_scores = 4;
 }
 
 message AddMatchResultResponse {
@@ -66,6 +71,14 @@ message InvalidateMatchResultRequest {
 
 message InvalidateMatchResultResponse {
   bool success = 1;
+}
+
+message ListRecentMatchesRequest {
+  int32 limit = 1;
+}
+
+message ListRecentMatchesResponse {
+  repeated MatchResult results = 1;
 }
 
 // LadderService provides access to the squash ladder
@@ -84,4 +97,7 @@ service LadderService {
   
   // InvalidateMatchResult reverts a previously recorded match
   rpc InvalidateMatchResult(InvalidateMatchResultRequest) returns (InvalidateMatchResultResponse);
+
+  // ListRecentMatches returns the last n matches
+  rpc ListRecentMatches(ListRecentMatchesRequest) returns (ListRecentMatchesResponse);
 }
