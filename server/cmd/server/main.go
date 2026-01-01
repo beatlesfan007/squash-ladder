@@ -8,9 +8,8 @@ import (
 	"net/http"
 	"os"
 
+	"squash-ladder/server"
 	ladderpb "squash-ladder/server/gen/ladder"
-	"squash-ladder/server/handlers"
-	"squash-ladder/server/model"
 
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"google.golang.org/grpc"
@@ -22,7 +21,7 @@ func main() {
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		log.Fatalf("Failed to create data directory: %v", err)
 	}
-	ladderModel, err := model.New("data/transaction_log.jsonl")
+	ladderModel, err := server.NewModel("data/transaction_log.jsonl")
 	if err != nil {
 		log.Fatalf("Failed to initialize ladder: %v", err)
 	}
@@ -31,7 +30,7 @@ func main() {
 	grpcServer := grpc.NewServer()
 
 	// Create and register ladder service
-	ladderService := handlers.NewLadderService(ladderModel)
+	ladderService := server.NewLadderService(ladderModel)
 	ladderpb.RegisterLadderServiceServer(grpcServer, ladderService)
 
 	// Wrap gRPC server with gRPC-Web

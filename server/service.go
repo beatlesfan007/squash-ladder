@@ -1,4 +1,4 @@
-package handlers
+package server
 
 import (
 	"context"
@@ -7,17 +7,16 @@ import (
 	"strings"
 
 	ladderpb "squash-ladder/server/gen/ladder"
-	"squash-ladder/server/model"
 )
 
 // LadderService implements the LadderService gRPC service
 type LadderService struct {
 	ladderpb.UnimplementedLadderServiceServer
-	model *model.Model
+	model *Model
 }
 
 // NewLadderService creates a new ladder service handler
-func NewLadderService(m *model.Model) *LadderService {
+func NewLadderService(m *Model) *LadderService {
 	return &LadderService{
 		model: m,
 	}

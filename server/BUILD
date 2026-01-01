@@ -1,25 +1,17 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
-    name = "model_lib",
-    srcs = ["model/model.go"],
-    importpath = "squash-ladder/server/model",
+    name = "server_pkg",
+    srcs = [
+        "model.go",
+        "service.go",
+    ],
+    importpath = "squash-ladder/server",
+    visibility = ["//visibility:public"],
     deps = [
         "//server/proto:ladder_go_proto",
         "@com_github_google_uuid//:uuid",
     ],
-    visibility = ["//visibility:public"],
-)
-
-go_library(
-    name = "handlers_lib",
-    srcs = ["handlers/service.go"],
-    importpath = "squash-ladder/server/handlers",
-    deps = [
-        ":model_lib",
-        "//server/proto:ladder_go_proto",
-    ],
-    visibility = ["//visibility:public"],
 )
 
 go_library(
@@ -27,11 +19,10 @@ go_library(
     srcs = ["cmd/server/main.go"],
     importpath = "squash-ladder/server/cmd/server",
     deps = [
+        ":server_pkg",
         "//server/proto:ladder_go_proto",
-        ":handlers_lib",
-        ":model_lib",
-        "@org_golang_google_grpc//:go_default_library",
         "@com_github_improbable_eng_grpc_web//go/grpcweb",
+        "@org_golang_google_grpc//:go_default_library",
     ],
 )
 
@@ -41,3 +32,20 @@ go_binary(
     visibility = ["//visibility:public"],
 )
 
+go_library(
+    name = "verify_lib",
+    srcs = ["cmd/verify/main.go"],
+    importpath = "squash-ladder/server/cmd/verify",
+    deps = [
+        "//server/proto:ladder_go_proto",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "verify",
+    embed = [":verify_lib"],
+    visibility = ["//visibility:public"],
+)

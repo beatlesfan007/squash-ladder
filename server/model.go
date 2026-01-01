@@ -1,4 +1,4 @@
-package model
+package server
 
 import (
 	"bufio"
@@ -57,8 +57,8 @@ type Model struct {
 	Transactions []Transaction // In-memory cache of transactions for invalidation
 }
 
-// New creates a new model and loads state from operations log
-func New(logFilePath string) (*Model, error) {
+// NewModel creates a new model and loads state from operations log
+func NewModel(logFilePath string) (*Model, error) {
 	m := &Model{
 		Players:      make([]*ladderpb.Player, 0),
 		LogFilePath:  logFilePath,
