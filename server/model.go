@@ -42,11 +42,20 @@ type RemovePlayerPayload struct {
 }
 
 // MatchResultPayload payload for a match result
+// SetScorePayload payload for a single set
+type SetScorePayload struct {
+	Player1Points  int32 `json:"player1_points"`
+	Player2Points  int32 `json:"player2_points"`
+	Player1Default bool  `json:"player1_default,omitempty"`
+	Player2Default bool  `json:"player2_default,omitempty"`
+}
+
+// MatchResultPayload payload for a match result
 type MatchResultPayload struct {
-	Player1ID string   `json:"player1_id"`
-	Player2ID string   `json:"player2_id"`
-	WinnerID  string   `json:"winner_id"`
-	SetScores []string `json:"set_scores"`
+	Player1ID string            `json:"player1_id"`
+	Player2ID string            `json:"player2_id"`
+	WinnerID  string            `json:"winner_id"`
+	SetScores []SetScorePayload `json:"set_scores"`
 }
 
 // Model manages the state of the squash ladder
@@ -315,18 +324,28 @@ func (m *Model) RemovePlayer(playerID string) error {
 }
 
 // AddMatchResult records a match
-func (m *Model) AddMatchResult(p1ID, p2ID, winnerID string, setScores []string) (string, error) {
+func (m *Model) AddMatchResult(p1ID, p2ID, winnerID string, setScores []*ladderpb.SetScore) (string, error) {
 	// Note: Validation logic moved to service layer
 
 	if winnerID != p1ID && winnerID != p2ID {
 		return "", fmt.Errorf("winner must be one of the players")
 	}
 
+	payloadSets := make([]SetScorePayload, len(setScores))
+	for i, s := range setScores {
+		payloadSets[i] = SetScorePayload{
+			Player1Points:  s.Player1Points,
+			Player2Points:  s.Player2Points,
+			Player1Default: s.Player1Default,
+			Player2Default: s.Player2Default,
+		}
+	}
+
 	payload_bytes, _ := json.Marshal(MatchResultPayload{
 		Player1ID: p1ID,
 		Player2ID: p2ID,
 		WinnerID:  winnerID,
-		SetScores: setScores,
+		SetScores: payloadSets,
 	})
 
 	tx := &Transaction{

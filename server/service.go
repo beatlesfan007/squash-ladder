@@ -3,8 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"strings"
 
 	ladderpb "squash-ladder/server/gen/ladder"
 )
@@ -48,34 +46,40 @@ func (h *LadderService) RemovePlayer(ctx context.Context, req *ladderpb.RemovePl
 	return &ladderpb.RemovePlayerResponse{Success: true}, nil
 }
 
-// ValidateScore validates squash scoring rules
-func ValidateScore(setScores []string) (bool, error) {
+// ValidateScore validates squash scoring rules and returns the winner (1 or 2)
+func ValidateScore(setScores []*ladderpb.SetScore) (int, error) {
 	p1Sets := 0
 	p2Sets := 0
 
-	for _, s := range setScores {
-		parts := strings.Split(s, "-")
-		if len(parts) != 2 {
-			return false, fmt.Errorf("invalid score format: %s", s)
+	for i, s := range setScores {
+		isLastSet := i == len(setScores)-1
+
+		if s.Player1Default || s.Player2Default {
+			if !isLastSet {
+				return 0, fmt.Errorf("defaulting player must happen in the final set")
+			}
+			if s.Player1Default && s.Player2Default {
+				return 0, fmt.Errorf("both players cannot default")
+			}
+			// Valid default in final set
+			if s.Player1Default {
+				// Player 1 defaulted, Player 2 wins
+				return 2, nil
+			}
+			// Player 2 defaulted, Player 1 wins
+			return 1, nil
 		}
 
-		// Check for default
-		if parts[0] == "D" || parts[1] == "D" {
-			// Logic for default: one player defaults, other wins set?
-			// The requirements say: 7(D) is valid. If defaulted, it's the last set.
-			return true, nil
-		}
-
-		p1Points, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
-		p2Points, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
-
-		if err1 != nil || err2 != nil {
-			return false, fmt.Errorf("invalid points: %s", s)
-		}
+		p1Points := int(s.Player1Points)
+		p2Points := int(s.Player2Points)
 
 		// Validate set rules: to 11, win by 2
+		if p1Points < 0 || p2Points < 0 {
+			return 0, fmt.Errorf("scores cannot be negative")
+		}
+
 		if p1Points < 11 && p2Points < 11 {
-			return false, fmt.Errorf("set must go to at least 11: %s", s)
+			return 0, fmt.Errorf("set must go to at least 11: %d-%d", p1Points, p2Points)
 		}
 
 		diff := p1Points - p2Points
@@ -84,7 +88,7 @@ func ValidateScore(setScores []string) (bool, error) {
 		}
 
 		if diff < 2 {
-			return false, fmt.Errorf("must win by 2 points: %s", s)
+			return 0, fmt.Errorf("must win by 2 points: %d-%d", p1Points, p2Points)
 		}
 
 		// Determine winner of set
@@ -97,20 +101,41 @@ func ValidateScore(setScores []string) (bool, error) {
 
 	// Best of 5 (first to 3)
 	if p1Sets > 3 || p2Sets > 3 {
-		return false, fmt.Errorf("too many sets won")
+		return 0, fmt.Errorf("too many sets won")
 	}
 
-	return true, nil
+	if p1Sets == 3 {
+		return 1, nil
+	}
+	if p2Sets == 3 {
+		return 2, nil
+	}
+
+	return 0, fmt.Errorf("match must have a clear winner (first to 3 sets)")
 }
 
 // AddMatchResult records a match result
 func (h *LadderService) AddMatchResult(ctx context.Context, req *ladderpb.AddMatchResultRequest) (*ladderpb.AddMatchResultResponse, error) {
+	if req.MatchResult == nil {
+		return &ladderpb.AddMatchResultResponse{Success: false}, fmt.Errorf("match_result is required")
+	}
+
 	// Validate score
-	if valid, err := ValidateScore(req.SetScores); !valid {
+	// Validate score covers defaults and calculates winner
+	winnerIdx, err := ValidateScore(req.MatchResult.SetScores)
+	if err != nil {
 		return &ladderpb.AddMatchResultResponse{Success: false}, err
 	}
 
-	txID, err := h.model.AddMatchResult(req.Player1Id, req.Player2Id, req.WinnerId, req.SetScores)
+	// Double check winner matches the score calculation
+	if winnerIdx == 1 && req.MatchResult.WinnerId != req.MatchResult.Player1Id {
+		return &ladderpb.AddMatchResultResponse{Success: false}, fmt.Errorf("scores indicate player 1 won, but winner_id does not match player 1")
+	}
+	if winnerIdx == 2 && req.MatchResult.WinnerId != req.MatchResult.Player2Id {
+		return &ladderpb.AddMatchResultResponse{Success: false}, fmt.Errorf("scores indicate player 2 won, but winner_id does not match player 2")
+	}
+
+	txID, err := h.model.AddMatchResult(req.MatchResult.Player1Id, req.MatchResult.Player2Id, req.MatchResult.WinnerId, req.MatchResult.SetScores)
 	if err != nil {
 		return &ladderpb.AddMatchResultResponse{Success: false}, err
 	}
