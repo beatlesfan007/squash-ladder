@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	ladderpb "squash-ladder/server/gen/ladder"
@@ -151,8 +150,7 @@ func TestValidateScore(t *testing.T) {
 }
 
 func TestLadderService_AddMatchResult(t *testing.T) {
-	m, path := createTempModel(t)
-	defer os.Remove(path)
+	m := setupTestDB(t)
 
 	m.AddPlayer("Alice", "alice")
 	m.AddPlayer("Bob", "bob")
@@ -195,8 +193,7 @@ func TestLadderService_AddMatchResult(t *testing.T) {
 }
 
 func TestLadderService_ListRecentMatches(t *testing.T) {
-	m, path := createTempModel(t)
-	defer os.Remove(path)
+	m := setupTestDB(t)
 
 	m.AddPlayer("Alice", "alice")
 	m.AddPlayer("Bob", "bob")

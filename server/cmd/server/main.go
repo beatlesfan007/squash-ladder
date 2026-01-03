@@ -9,9 +9,10 @@ import (
 
 func main() {
 	// Get configuration from environment or use defaults
-	dataPath := os.Getenv("LADDER_DATA_FILE")
-	if dataPath == "" {
-		dataPath = "data/transaction_log.jsonl"
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		// Default to local postgres via docker-compose
+		dbURL = "postgres://postgres:password@localhost:5432/squash_ladder?sslmode=disable"
 	}
 
 	httpPort := os.Getenv("PORT")
@@ -25,9 +26,9 @@ func main() {
 	}
 
 	cfg := server.Config{
-		DataPath: dataPath,
-		HTTPPort: httpPort,
-		GRPCPort: grpcPort,
+		DatabaseURL: dbURL,
+		HTTPPort:    httpPort,
+		GRPCPort:    grpcPort,
 	}
 
 	if err := server.Run(cfg); err != nil {

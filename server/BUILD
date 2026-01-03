@@ -14,7 +14,7 @@ go_library(
         "//server/proto:storage_go_proto",
         "@com_github_google_uuid//:uuid",
         "@com_github_improbable_eng_grpc_web//go/grpcweb",
-        "@com_github_icza_backscanner//:backscanner",
+        "@com_github_lib_pq//:pq",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_protobuf//proto:go_default_library",
     ],

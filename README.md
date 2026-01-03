@@ -4,7 +4,7 @@ A web application for managing a squash ladder where players can view rankings a
 
 ## Architecture
 
-- **Backend**: gRPC server (Go) with gRPC-Web support - serves player ranking APIs via Protocol Buffers
+- **Backend**: gRPC server (Go) with gRPC-Web support - serves player ranking APIs via Protocol Buffers. Persists data to PostgreSQL.
 - **Frontend**: React TypeScript application - displays player rankings using gRPC-Web client
 - **Build System**: Bazel for unified builds with automatic proto code generation using `rules_proto_grpc`
 
@@ -30,11 +30,22 @@ Fast feedback loop using a local Go process and Vite dev server.
 
 This script:
 1. Generates proto files (`scripts/gen_protos.sh`).
-2. Starts the Go server via Bazel (`bazel run //server:server`).
-3. Starts the Vite client (`npm run dev`).
-4. Cleans up processes on exit (Ctrl+C).
+2. Starts the Postgres Database via Docker Compose.
+3. Starts the Go server via Bazel (`bazel run //server:server`).
+4. Starts the Vite client (`npm run dev`).
+5. Cleans up processes on exit (Ctrl+C).
 
-### 2. Kubernetes Deployment
+### 2. Running Verification Tests
+
+To run the full suite of tests including integration tests (requires Postgres):
+
+```bash
+./scripts/test_integration.sh
+```
+
+This script handles starting the database, waiting for it to be ready, and running `go test`.
+
+### 3. Kubernetes Deployment
 
 Production-like environment using Docker and Kubernetes.
 
@@ -120,6 +131,6 @@ squash-ladder/
 ## Next Steps
 
 - [ ] Add Firebase authentication
-- [ ] Replace mock data with database (PostgreSQL/SQLite)
-- [ ] Add match logging functionality
-- [ ] Implement ladder movement logic
+- [x] Replace mock data with database (PostgreSQL)
+- [x] Add match logging functionality
+- [x] Implement ladder movement logic

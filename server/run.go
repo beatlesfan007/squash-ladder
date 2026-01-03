@@ -6,8 +6,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 
 	ladderpb "squash-ladder/server/gen/ladder"
 
@@ -17,20 +15,15 @@ import (
 
 // Config holds the configuration for the server
 type Config struct {
-	DataPath string
-	HTTPPort string
-	GRPCPort string
+	DatabaseURL string
+	HTTPPort    string
+	GRPCPort    string
 }
 
 // Run starts the server with the given configuration.
 // It blocks until the server fails or is stopped.
 func Run(cfg Config) error {
-	// Ensure data directory exists
-	dataDir := filepath.Dir(cfg.DataPath)
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		return fmt.Errorf("failed to create data directory: %v", err)
-	}
-	ladderModel, err := NewModel(cfg.DataPath)
+	ladderModel, err := NewModel(cfg.DatabaseURL)
 	if err != nil {
 		return fmt.Errorf("failed to initialize ladder: %v", err)
 	}

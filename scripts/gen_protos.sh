@@ -73,7 +73,7 @@ if [ $? -eq 0 ]; then
         
         # Copy Go files
         echo -e "  ℹ Copying generated Go files to $DEST_DIR/..."
-        cp -f "$SRC_DIR"/*.pb.go "$DEST_DIR/"
+        cp -f "$SRC_DIR"/ladder*.pb.go "$DEST_DIR/"
         
         echo -e "${GREEN}  ✓ Server files updated${NC}"
     else
@@ -103,7 +103,7 @@ if [ $? -eq 0 ]; then
         
         # Copy Go files
         echo -e "  ℹ Copying generated Go files to $DEST_DIR/..."
-        cp -f "$SRC_DIR"/*.pb.go "$DEST_DIR/"
+        cp -f "$SRC_DIR"/storage*.pb.go "$DEST_DIR/"
         
         echo -e "${GREEN}  ✓ Server storage files updated${NC}"
     else

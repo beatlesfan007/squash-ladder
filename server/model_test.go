@@ -7,25 +7,27 @@ import (
 	ladderpb "squash-ladder/server/gen/ladder"
 )
 
-func createTempModel(t *testing.T) (*Model, string) {
-	tmpFile, err := os.CreateTemp("", "ladder_log_*.json")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	tmpFile.Close()
-
-	m, err := NewModel(tmpFile.Name())
-	if err != nil {
-		os.Remove(tmpFile.Name())
-		t.Fatalf("failed to create model: %v", err)
+func setupTestDB(t *testing.T) *Model {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		t.Skip("Skipping test: DATABASE_URL not set")
 	}
 
-	return m, tmpFile.Name()
+	m, err := NewModel(dsn)
+	if err != nil {
+		t.Fatalf("failed to connect to db: %v", err)
+	}
+
+	// Cleanup before test
+	if _, err := m.Db.Exec("TRUNCATE TABLE players, transactions"); err != nil {
+		t.Fatalf("failed to truncate tables: %v", err)
+	}
+
+	return m
 }
 
 func TestModel_AddPlayer(t *testing.T) {
-	m, path := createTempModel(t)
-	defer os.Remove(path)
+	m := setupTestDB(t)
 
 	p, err := m.AddPlayer("Alice", "alice-id")
 	if err != nil {
@@ -43,8 +45,7 @@ func TestModel_AddPlayer(t *testing.T) {
 }
 
 func TestModel_RemovePlayer(t *testing.T) {
-	m, path := createTempModel(t)
-	defer os.Remove(path)
+	m := setupTestDB(t)
 
 	m.AddPlayer("Alice", "alice-id")
 	m.AddPlayer("Bob", "bob-id")
@@ -69,8 +70,7 @@ func TestModel_RemovePlayer(t *testing.T) {
 }
 
 func TestModel_ApplyMatchResult(t *testing.T) {
-	m, path := createTempModel(t)
-	defer os.Remove(path)
+	m := setupTestDB(t)
 
 	m.AddPlayer("Alice", "alice")     // Rank 1
 	m.AddPlayer("Bob", "bob")         // Rank 2
@@ -100,8 +100,7 @@ func TestModel_ApplyMatchResult(t *testing.T) {
 }
 
 func TestModel_InvalidateMatchResult(t *testing.T) {
-	m, path := createTempModel(t)
-	defer os.Remove(path)
+	m := setupTestDB(t)
 
 	m.AddPlayer("Alice", "alice")
 	m.AddPlayer("Bob", "bob")
@@ -129,8 +128,7 @@ func TestModel_InvalidateMatchResult(t *testing.T) {
 }
 
 func TestModel_GetRecentMatches(t *testing.T) {
-	m, path := createTempModel(t)
-	defer os.Remove(path)
+	m := setupTestDB(t)
 
 	m.AddPlayer("Alice", "alice")
 	m.AddPlayer("Bob", "bob")
@@ -154,8 +152,7 @@ func TestModel_GetRecentMatches(t *testing.T) {
 }
 
 func TestModel_Persistence(t *testing.T) {
-	m, path := createTempModel(t)
-	defer os.Remove(path)
+	m := setupTestDB(t)
 
 	m.AddPlayer("Alice", "alice")
 	m.AddPlayer("Bob", "bob")
@@ -165,14 +162,18 @@ func TestModel_Persistence(t *testing.T) {
 		{ChallengerPoints: 11, DefenderPoints: 5},
 	})
 
-	// Load new model from same file
-	m2, err := NewModel(path)
+	// Load new model from same DB (simulating restart)
+	dsn := os.Getenv("DATABASE_URL")
+	m2, err := NewModel(dsn)
 	if err != nil {
-		t.Fatalf("failed to load model: %v", err)
+		t.Fatalf("failed to connect to db: %v", err)
 	}
 
 	players := m2.ListPlayers()
-	if len(players) != 2 || players[0].Id != "bob" {
-		t.Errorf("State not recovered correctly: %+v", players)
+	if len(players) != 2 {
+		t.Fatalf("expected 2 players, got %d", len(players))
+	}
+	if players[0].Id != "bob" {
+		t.Errorf("State not recovered correctly: expected bob as #1, got %v", players[0].Id)
 	}
 }

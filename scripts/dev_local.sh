@@ -12,7 +12,18 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# Parse arguments
+CLEAN_DB=false
+for arg in "$@"; do
+    if [ "$arg" == "--clean" ]; then
+        CLEAN_DB=true
+    fi
+done
+
 echo -e "${BLUE}=== Starting Local Development ===${NC}"
+if [ "$CLEAN_DB" = true ]; then
+    echo -e "${YELLOW}Mode: Clean start (Database will be reset)${NC}"
+fi
 
 # 1. Check prerequisites
 check_command() {
@@ -57,6 +68,29 @@ echo -e "\n${YELLOW}[3/4] Generating proto files...${NC}"
 # 4. Start Servers
 echo -e "\n${BLUE}[4/4] Starting servers...${NC}"
 
+# Start Postgres
+echo -e "Starting PostgreSQL..."
+docker-compose up -d db
+
+# Wait for DB to be ready
+until docker exec squash_ladder_db pg_isready -U postgres > /dev/null 2>&1; do
+  echo -n "."
+  sleep 1
+done
+echo ""
+
+if [ "$CLEAN_DB" = true ]; then
+    echo -e "${YELLOW}Cleaning database...${NC}"
+    # Terminate existing connections first
+    docker exec squash_ladder_db psql -U postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'squash_ladder' AND pid <> pg_backend_pid();" > /dev/null 2>&1 || true
+    # Drop and recreate
+    docker exec squash_ladder_db dropdb -U postgres --if-exists squash_ladder
+    docker exec squash_ladder_db createdb -U postgres squash_ladder
+    echo -e "${GREEN}  ✓ Database reset${NC}"
+fi
+
+echo -e "${GREEN}  ✓ PostgreSQL started${NC}"
+
 # Cleanup function
 cleanup() {
     echo -e "\n${BLUE}Stopping servers...${NC}"
@@ -67,7 +101,7 @@ trap cleanup EXIT
 # Start Go Server (using Bazel for dependency management)
 echo -e "Starting Go Server (logs: /tmp/squash-ladder-server.log)..."
 cd "$PROJECT_ROOT"
-bazel run //server:server > /tmp/squash-ladder-server.log 2>&1 &
+DATABASE_URL="postgres://postgres:password@localhost:5432/squash_ladder?sslmode=disable" bazel run //server:server > /tmp/squash-ladder-server.log 2>&1 &
 SERVER_PID=$!
 
 # Wait for server to be somewhat ready (not perfect check, but good UX)

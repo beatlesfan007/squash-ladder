@@ -15,13 +15,11 @@ import (
 )
 
 func main() {
-	// Create a temporary file for the database
-	tmpfile, err := os.CreateTemp("", "ladder_verify_*.jsonl")
-	if err != nil {
-		log.Fatal(err)
+	// Get configuration from environment or use defaults
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		dbURL = "postgres://postgres:password@localhost:5432/squash_ladder?sslmode=disable"
 	}
-	defer os.Remove(tmpfile.Name()) // clean up
-	tmpfile.Close()
 
 	// Pick ports for testing
 	grpcPort := "9091"
@@ -30,9 +28,9 @@ func main() {
 	// Start Server
 	go func() {
 		cfg := server.Config{
-			DataPath: tmpfile.Name(),
-			HTTPPort: httpPort,
-			GRPCPort: grpcPort,
+			DatabaseURL: dbURL,
+			HTTPPort:    httpPort,
+			GRPCPort:    grpcPort,
 		}
 		if err := server.Run(cfg); err != nil {
 			log.Printf("Server stopped: %v", err)
