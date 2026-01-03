@@ -13,6 +13,7 @@ go_library(
         "//server/proto:ladder_go_proto",
         "@com_github_google_uuid//:uuid",
         "@com_github_improbable_eng_grpc_web//go/grpcweb",
+        "@com_github_icza_backscanner//:backscanner",
         "@org_golang_google_grpc//:go_default_library",
     ],
 )

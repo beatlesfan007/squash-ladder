@@ -1,33 +1,36 @@
 package server
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	ladderpb "squash-ladder/server/gen/ladder"
 
 	"github.com/google/uuid"
+	"github.com/icza/backscanner"
 )
 
 // TransactionType defines the type of transaction
 type TransactionType string
 
 const (
-	TxAddPlayer    TransactionType = "ADD_PLAYER"
-	TxRemovePlayer TransactionType = "REMOVE_PLAYER"
-	TxMatchResult  TransactionType = "MATCH_RESULT"
+	TxAddPlayer       TransactionType = "ADD_PLAYER"
+	TxRemovePlayer    TransactionType = "REMOVE_PLAYER"
+	TxMatchResult     TransactionType = "MATCH_RESULT"
+	TxInvalidateMatch TransactionType = "INVALIDATE_MATCH"
 )
 
 // Transaction represents a single operation in the log
 type Transaction struct {
-	ID        string          `json:"id"`
-	Type      TransactionType `json:"type"`
-	Timestamp time.Time       `json:"timestamp"`
-	Payload   json.RawMessage `json:"payload"`
+	ID         string             `json:"id"`
+	Type       TransactionType    `json:"type"`
+	Timestamp  time.Time          `json:"timestamp"`
+	Payload    json.RawMessage    `json:"payload"`
+	PlayerList []*ladderpb.Player `json:"player_list"`
 }
 
 // AddPlayerPayload payload for adding a player
@@ -58,182 +61,258 @@ type MatchResultPayload struct {
 	SetScores    []SetScorePayload `json:"set_scores"`
 }
 
+type InvalidateMatchPayload struct {
+	InvalidatedTransactionID string `json:"invalidated_transaction_id"`
+}
+
 // Model manages the state of the squash ladder
 type Model struct {
-	mu           sync.RWMutex
-	Players      []*ladderpb.Player
-	LogFilePath  string
-	Transactions []Transaction // In-memory cache of transactions for invalidation
+	mu          sync.RWMutex
+	LogFilePath string
 }
 
-// NewModel creates a new model and loads state from operations log
+// NewModel creates a new model
 func NewModel(logFilePath string) (*Model, error) {
-	m := &Model{
-		Players:      make([]*ladderpb.Player, 0),
-		LogFilePath:  logFilePath,
-		Transactions: make([]Transaction, 0),
-	}
-
-	if err := m.loadState(); err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return &Model{
+		LogFilePath: logFilePath,
+	}, nil
 }
 
-// loadState reads the transaction log and rebuilds the ladder state
-func (m *Model) loadState() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// Reset state
-	m.Players = make([]*ladderpb.Player, 0)
-	m.Transactions = make([]Transaction, 0)
-
+// CurrentState reads the log backwards to find the last transaction and return its player list
+func (m *Model) CurrentState() ([]*ladderpb.Player, error) {
 	file, err := os.Open(m.LogFilePath)
 	if os.IsNotExist(err) {
-		return nil // New ladder
+		return []*ladderpb.Player{}, nil
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		var tx Transaction
-		if err := json.Unmarshal(scanner.Bytes(), &tx); err != nil {
-			return fmt.Errorf("failed to parse transaction: %v", err)
-		}
-		// Apply transaction to state
-		if err := m.applyTransaction(&tx); err != nil {
-			return fmt.Errorf("failed to apply transaction %s: %v", tx.ID, err)
-		}
-		m.Transactions = append(m.Transactions, tx)
+	stat, err := file.Stat()
+	if err != nil {
+		return nil, err
 	}
 
-	return scanner.Err()
+	if stat.Size() == 0 {
+		return []*ladderpb.Player{}, nil
+	}
+
+	scanner := backscanner.New(file, int(stat.Size()))
+
+	// Scan backwards for the first valid line
+	for {
+		line, _, err := scanner.Line()
+		if err != nil {
+			// EOF or other error
+			if err.Error() == "EOF" { // backscanner returns EOF when done
+				return []*ladderpb.Player{}, nil
+			}
+			return nil, err
+		}
+
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		var lastTx Transaction
+		if err := json.Unmarshal([]byte(line), &lastTx); err != nil {
+			// If we can't parse the last line, maybe it's corrupted or partial?
+			// We could try providing the previous line... but in a strict append log,
+			// the last line should be valid.
+			return nil, fmt.Errorf("failed to parse last transaction: %v", err)
+		}
+
+		if lastTx.PlayerList == nil {
+			return []*ladderpb.Player{}, nil
+		}
+		return lastTx.PlayerList, nil
+	}
 }
 
-// applyTransaction applies a single transaction to the in-memory state
-func (m *Model) applyTransaction(tx *Transaction) error {
-	switch tx.Type {
+// applyTransactionLogic calculates the NEW player state based on a transaction and previous state.
+// It returns the new list of players. Not to be confused with applying to a stateful Model.
+func (m *Model) applyTransactionLogic(txType TransactionType, payload json.RawMessage, currentPlayers []*ladderpb.Player) ([]*ladderpb.Player, error) {
+	// Deep copy players to avoid mutating the passed slice if it's used elsewhere
+	players := make([]*ladderpb.Player, len(currentPlayers))
+	for i, p := range currentPlayers {
+		// Create a new struct copy manually to avoid copying the mutex in MessageState
+		players[i] = &ladderpb.Player{
+			Id:   p.Id,
+			Name: p.Name,
+			Rank: p.Rank,
+		}
+	}
+
+	switch txType {
 	case TxAddPlayer:
 		var p AddPlayerPayload
-		if err := json.Unmarshal(tx.Payload, &p); err != nil {
-			return err
+		if err := json.Unmarshal(payload, &p); err != nil {
+			return nil, err
 		}
-		player := &ladderpb.Player{
+		// Check duplicates
+		for _, pl := range players {
+			if pl.Id == p.PlayerID {
+				return nil, fmt.Errorf("player ID already exists")
+			}
+		}
+		newPlayer := &ladderpb.Player{
 			Id:   p.PlayerID,
 			Name: p.Name,
-			Rank: int32(len(m.Players) + 1),
+			Rank: int32(len(players) + 1),
 		}
-		m.Players = append(m.Players, player)
+		players = append(players, newPlayer)
 
 	case TxRemovePlayer:
 		var p RemovePlayerPayload
-		if err := json.Unmarshal(tx.Payload, &p); err != nil {
-			return err
+		if err := json.Unmarshal(payload, &p); err != nil {
+			return nil, err
 		}
-		m.removePlayerInternal(p.PlayerID)
+		idx := -1
+		for i, pl := range players {
+			if pl.Id == p.PlayerID {
+				idx = i
+				break
+			}
+		}
+		if idx == -1 {
+			return nil, fmt.Errorf("player not found")
+		}
+		players = append(players[:idx], players[idx+1:]...)
+		// Re-rank
+		for i := idx; i < len(players); i++ {
+			players[i].Rank = int32(i + 1)
+		}
 
 	case TxMatchResult:
 		var p MatchResultPayload
-		if err := json.Unmarshal(tx.Payload, &p); err != nil {
-			return err
+		if err := json.Unmarshal(payload, &p); err != nil {
+			return nil, err
 		}
-		m.applyMatchResultInternal(p.ChallengerID, p.DefenderID, p.WinnerID)
+
+		challengerIdx := -1
+		defenderIdx := -1
+		for i, pl := range players {
+			if pl.Id == p.ChallengerID {
+				challengerIdx = i
+			}
+			if pl.Id == p.DefenderID {
+				defenderIdx = i
+			}
+		}
+
+		if challengerIdx == -1 || defenderIdx == -1 {
+			// If players missing, we might ignore or error?
+			// For replay safety, if a player is missing (maybe removed?), we can error or no-op.
+			// Current logic enforces they exist.
+			return nil, fmt.Errorf("challenger or defender not found")
+		}
+
+		winnerIdx := -1
+		loserIdx := -1
+		if p.WinnerID == p.ChallengerID {
+			winnerIdx = challengerIdx
+			loserIdx = defenderIdx
+		} else {
+			winnerIdx = defenderIdx
+			loserIdx = challengerIdx
+		}
+
+		if winnerIdx > loserIdx {
+			// Winner takes loser's position
+			winner := players[winnerIdx]
+
+			// Shift everyone from loserIdx to winnerIdx-1 down one spot
+			copy(players[loserIdx+1:winnerIdx+1], players[loserIdx:winnerIdx])
+
+			// Place winner at loser's old spot
+			players[loserIdx] = winner
+
+			// Re-assign ranks
+			for i := loserIdx; i <= winnerIdx; i++ {
+				players[i].Rank = int32(i + 1)
+			}
+		}
+
+	case TxInvalidateMatch:
+		// Should not be applied recursively.
+		// If we are applying a TxInvalidateMatch, it means we ARE replaying.
+		// But wait, applyTransactionLogic is used to COMPUTE the state for a NEW transaction.
+		// If the new transaction is itself an InvalidateMatch, the "payload" logic is complex:
+		// It requires re-reading the whole history.
+		// So this helper might not be suitable for TxInvalidateMatch logic directly
+		// unless we pass the computed state in.
+		// Actually, for InvalidateMatch, the state IS the result of the replay.
+		// So we don't "apply" it to `currentPlayers` in the same way.
+		// We'll handle InvalidateMatch separately in the public method.
+		return currentPlayers, nil
 	}
-	return nil
+
+	return players, nil
 }
 
-func (m *Model) removePlayerInternal(playerID string) {
-	idx := -1
-	for i, p := range m.Players {
-		if p.Id == playerID {
-			idx = i
-			break
-		}
-	}
-	if idx == -1 {
-		return // Player not found
-	}
-
-	// Remove player
-	m.Players = append(m.Players[:idx], m.Players[idx+1:]...)
-
-	// Update ranks for subsequent players
-	for i := idx; i < len(m.Players); i++ {
-		m.Players[i].Rank = int32(i + 1)
-	}
-}
-
-func (m *Model) applyMatchResultInternal(challengerID, defenderID, winnerID string) {
-	challengerIdx := -1
-	defenderIdx := -1
-
-	for i, p := range m.Players {
-		if p.Id == challengerID {
-			challengerIdx = i
-		}
-		if p.Id == defenderID {
-			defenderIdx = i
-		}
-	}
-
-	if challengerIdx == -1 || defenderIdx == -1 {
-		return
-	}
-
-	winnerIdx := -1
-	loserIdx := -1
-
-	if winnerID == challengerID {
-		winnerIdx = challengerIdx
-		loserIdx = defenderIdx
-	} else {
-		winnerIdx = defenderIdx
-		loserIdx = challengerIdx
-	}
-
-	// If winner is lower rank (higher index value), they take loser's spot
-	// Lower rank number = better rank
-	// Array index 0 = Rank 1
-	// So if winnerIdx > loserIdx, winner has worse rank and beat better rank
-	if winnerIdx > loserIdx {
-		// Winner takes loser's position
-		winner := m.Players[winnerIdx]
-
-		// Shift everyone from loserIdx to winnerIdx-1 down one spot
-		copy(m.Players[loserIdx+1:winnerIdx+1], m.Players[loserIdx:winnerIdx])
-
-		// Place winner at loser's old spot
-		m.Players[loserIdx] = winner
-
-		// Re-assign ranks
-		for i := loserIdx; i <= winnerIdx; i++ {
-			m.Players[i].Rank = int32(i + 1)
-		}
-	}
-}
-
-// ListPlayers returns a copy of the current player list
+// ListPlayers returns the current player list
 func (m *Model) ListPlayers() []*ladderpb.Player {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// Return copy to prevent race conditions
-	result := make([]*ladderpb.Player, len(m.Players))
-	copy(result, m.Players)
-	return result
+	players, err := m.CurrentState()
+	if err != nil {
+		// In a real app, we should probably log this or return error.
+		// Keeping signature allowed means returning empty or panic.
+		// Assuming empty is safer for now.
+		fmt.Printf("Error reading current state: %v\n", err)
+		return []*ladderpb.Player{}
+	}
+	return players
 }
 
-// appendTransaction writes a transaction to the log and updates state
-func (m *Model) appendTransaction(tx *Transaction) error {
+// AddPlayer adds a player to the ladder
+func (m *Model) AddPlayer(name, playerID string) (*ladderpb.Player, error) {
+	if playerID == "" {
+		playerID = uuid.New().String()
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Write to file
+	// 1. Get Current State
+	currentPlayers, err := m.CurrentState()
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Prepare Payload
+	payload_bytes, _ := json.Marshal(AddPlayerPayload{
+		PlayerID: playerID,
+		Name:     name,
+	})
+
+	// 3. Compute New State
+	newPlayers, err := m.applyTransactionLogic(TxAddPlayer, payload_bytes, currentPlayers)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. Create Transaction
+	tx := &Transaction{
+		ID:         uuid.New().String(),
+		Type:       TxAddPlayer,
+		Timestamp:  time.Now(),
+		Payload:    payload_bytes,
+		PlayerList: newPlayers,
+	}
+
+	// 5. Append
+	if err := m.writeTransactionLocked(tx); err != nil {
+		return nil, err
+	}
+
+	return newPlayers[len(newPlayers)-1], nil
+}
+
+func (m *Model) writeTransactionLocked(tx *Transaction) error {
 	file, err := os.OpenFile(m.LogFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
@@ -248,87 +327,49 @@ func (m *Model) appendTransaction(tx *Transaction) error {
 	if _, err := file.Write(append(data, '\n')); err != nil {
 		return err
 	}
-
-	// Apply to local state
-	if err := m.applyTransaction(tx); err != nil {
-		return fmt.Errorf("failed to apply transaction: %v", err)
-	}
-
-	m.Transactions = append(m.Transactions, *tx)
 	return nil
-}
-
-// AddPlayer adds a player to the ladder
-func (m *Model) AddPlayer(name, playerID string) (*ladderpb.Player, error) {
-	if playerID == "" {
-		playerID = uuid.New().String()
-	}
-
-	// Check if ID exists
-	m.mu.RLock()
-	for _, p := range m.Players {
-		if p.Id == playerID {
-			m.mu.RUnlock()
-			return nil, fmt.Errorf("player ID already exists")
-		}
-	}
-	m.mu.RUnlock()
-
-	payload_bytes, _ := json.Marshal(AddPlayerPayload{
-		PlayerID: playerID,
-		Name:     name,
-	})
-
-	tx := &Transaction{
-		ID:        uuid.New().String(),
-		Type:      TxAddPlayer,
-		Timestamp: time.Now(),
-		Payload:   payload_bytes,
-	}
-
-	if err := m.appendTransaction(tx); err != nil {
-		return nil, err
-	}
-
-	// Get the added player
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.Players[len(m.Players)-1], nil
 }
 
 // RemovePlayer removes a player from the ladder
 func (m *Model) RemovePlayer(playerID string) error {
-	m.mu.RLock()
-	found := false
-	for _, p := range m.Players {
-		if p.Id == playerID {
-			found = true
-			break
-		}
-	}
-	m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	if !found {
-		return fmt.Errorf("player not found")
+	currentPlayers, err := m.CurrentState()
+	if err != nil {
+		return err
 	}
 
 	payload_bytes, _ := json.Marshal(RemovePlayerPayload{PlayerID: playerID})
-	tx := &Transaction{
-		ID:        uuid.New().String(),
-		Type:      TxRemovePlayer,
-		Timestamp: time.Now(),
-		Payload:   payload_bytes,
+
+	newPlayers, err := m.applyTransactionLogic(TxRemovePlayer, payload_bytes, currentPlayers)
+	if err != nil {
+		return err
 	}
 
-	return m.appendTransaction(tx)
+	tx := &Transaction{
+		ID:         uuid.New().String(),
+		Type:       TxRemovePlayer,
+		Timestamp:  time.Now(),
+		Payload:    payload_bytes,
+		PlayerList: newPlayers,
+	}
+
+	return m.writeTransactionLocked(tx)
 }
 
 // AddMatchResult records a match
 func (m *Model) AddMatchResult(challengerID, defenderID, winnerID string, setScores []*ladderpb.SetScore) (string, error) {
-	// Note: Validation logic moved to service layer
-
 	if winnerID != challengerID && winnerID != defenderID {
 		return "", fmt.Errorf("winner must be one of the players")
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	currentPlayers, err := m.CurrentState()
+	if err != nil {
+		return "", err
 	}
 
 	payloadSets := make([]SetScorePayload, len(setScores))
@@ -348,14 +389,20 @@ func (m *Model) AddMatchResult(challengerID, defenderID, winnerID string, setSco
 		SetScores:    payloadSets,
 	})
 
-	tx := &Transaction{
-		ID:        uuid.New().String(),
-		Type:      TxMatchResult,
-		Timestamp: time.Now(),
-		Payload:   payload_bytes,
+	newPlayers, err := m.applyTransactionLogic(TxMatchResult, payload_bytes, currentPlayers)
+	if err != nil {
+		return "", err
 	}
 
-	if err := m.appendTransaction(tx); err != nil {
+	tx := &Transaction{
+		ID:         uuid.New().String(),
+		Type:       TxMatchResult,
+		Timestamp:  time.Now(),
+		Payload:    payload_bytes,
+		PlayerList: newPlayers,
+	}
+
+	if err := m.writeTransactionLocked(tx); err != nil {
 		return "", err
 	}
 
@@ -367,50 +414,115 @@ func (m *Model) InvalidateMatchResult(txID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// 1. Find the transaction to invalidate
-	txIdx := -1
-	for i, tx := range m.Transactions {
-		if tx.ID == txID {
-			txIdx = i
-			break
-		}
-	}
-
-	if txIdx == -1 {
-		return fmt.Errorf("transaction not found")
-	}
-
-	// 2. Remove from In-Memory list
-	m.Transactions = append(m.Transactions[:txIdx], m.Transactions[txIdx+1:]...)
-
-	// 3. Rewrite the entire log file
-	file, err := os.OpenFile(m.LogFilePath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.Open(m.LogFilePath)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	for _, tx := range m.Transactions {
-		data, err := json.Marshal(tx)
+	stat, err := file.Stat()
+	if err != nil {
+		return err
+	}
+
+	scanner := backscanner.New(file, int(stat.Size()))
+
+	var replayStack []Transaction
+	var found bool
+	var currentPlayers []*ladderpb.Player
+
+	// Scan backwards to find the target transaction
+	for {
+		line, _, err := scanner.Line()
 		if err != nil {
+			if err.Error() == "EOF" {
+				break
+			}
 			return err
 		}
-		if _, err := file.Write(append(data, '\n')); err != nil {
+
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		var t Transaction
+		if err := json.Unmarshal([]byte(line), &t); err != nil {
 			return err
 		}
-	}
 
-	// 4. Rebuild State from scratch (in-memory) to ensure correctness
-	// We can reuse logic by resetting players and re-applying all transactions
-	m.Players = make([]*ladderpb.Player, 0)
-	for _, tx := range m.Transactions {
-		if err := m.applyTransaction(&tx); err != nil {
-			// This shouldn't happen if they were valid before
-			return fmt.Errorf("critical error rebuilding state: %v", err)
+		if t.ID == txID {
+			if t.Type != TxMatchResult {
+				return fmt.Errorf("can only invalidate match results")
+			}
+			found = true
+
+			// We found the target.
+			// The state *before* this transaction is the PlayerList of the *previous* transaction
+			// (which is the *next* transaction in our backward scan).
+
+			// Peek the next valid line to get baseline state
+			for {
+				prevLine, _, err := scanner.Line()
+				if err != nil {
+					if err.Error() == "EOF" {
+						// Found at start of log, so base state is empty
+						currentPlayers = []*ladderpb.Player{}
+						break
+					}
+					return err
+				}
+				prevLine = strings.TrimSpace(prevLine)
+				if prevLine == "" {
+					continue
+				}
+
+				var prevTx Transaction
+				if err := json.Unmarshal([]byte(prevLine), &prevTx); err != nil {
+					return fmt.Errorf("failed to parse previous transaction: %v", err)
+				}
+				currentPlayers = prevTx.PlayerList
+				break
+			}
+			break
 		}
+
+		// If not target, push to stack to replay later
+		// We push to front because we are reading backwards,
+		// but we want to replay in chronological order later.
+		// Actually, simpler: append, and then iterate replayStack in reverse.
+		replayStack = append(replayStack, t)
 	}
 
-	return nil
+	if !found {
+		return fmt.Errorf("transaction not found")
+	}
+
+	// 3. Replay
+	// Iterate replayStack in REVERSE (oldest to newest)
+	for i := len(replayStack) - 1; i >= 0; i-- {
+		t := replayStack[i]
+		newPlayers, err := m.applyTransactionLogic(t.Type, t.Payload, currentPlayers)
+		if err != nil {
+			return fmt.Errorf("replay failed at tx %s: %v", t.ID, err)
+		}
+		currentPlayers = newPlayers
+	}
+
+	// 4. Create Invalidate Transaction
+	payload_bytes, _ := json.Marshal(InvalidateMatchPayload{
+		InvalidatedTransactionID: txID,
+	})
+
+	tx := &Transaction{
+		ID:         uuid.New().String(),
+		Type:       TxInvalidateMatch,
+		Timestamp:  time.Now(),
+		Payload:    payload_bytes,
+		PlayerList: currentPlayers,
+	}
+
+	return m.writeTransactionLocked(tx)
 }
 
 // GetRecentMatches returns the last n matches
@@ -418,22 +530,64 @@ func (m *Model) GetRecentMatches(limit int32) ([]*ladderpb.MatchResult, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	results := make([]*ladderpb.MatchResult, 0)
+	file, err := os.Open(m.LogFilePath)
+	if os.IsNotExist(err) {
+		return []*ladderpb.MatchResult{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	scanner := backscanner.New(file, int(stat.Size()))
+
+	var matches []*ladderpb.MatchResult
+	invalidatedIds := make(map[string]bool)
 	count := int32(0)
 
-	// Iterate backwards through transactions
-	for i := len(m.Transactions) - 1; i >= 0; i-- {
+	for {
 		if count >= limit {
 			break
 		}
-		tx := m.Transactions[i]
-		if tx.Type == TxMatchResult {
-			var p MatchResultPayload
-			if err := json.Unmarshal(tx.Payload, &p); err != nil {
-				return nil, fmt.Errorf("failed to parse match result: %v", err)
+
+		line, _, err := scanner.Line()
+		if err != nil {
+			if err.Error() == "EOF" {
+				break
+			}
+			return nil, err
+		}
+
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		var t Transaction
+		if err := json.Unmarshal([]byte(line), &t); err != nil {
+			continue
+		}
+
+		if t.Type == TxInvalidateMatch {
+			var p InvalidateMatchPayload
+			if err := json.Unmarshal(t.Payload, &p); err == nil {
+				invalidatedIds[p.InvalidatedTransactionID] = true
+			}
+		} else if t.Type == TxMatchResult {
+			if invalidatedIds[t.ID] {
+				continue // Skip invalidated matches
 			}
 
-			// Convert payload to proto
+			var p MatchResultPayload
+			if err := json.Unmarshal(t.Payload, &p); err != nil {
+				continue
+			}
+
 			setScores := make([]*ladderpb.SetScore, len(p.SetScores))
 			for j, s := range p.SetScores {
 				setScores[j] = &ladderpb.SetScore{
@@ -444,16 +598,17 @@ func (m *Model) GetRecentMatches(limit int32) ([]*ladderpb.MatchResult, error) {
 				}
 			}
 
-			results = append(results, &ladderpb.MatchResult{
+			matches = append(matches, &ladderpb.MatchResult{
 				ChallengerId:  p.ChallengerID,
 				DefenderId:    p.DefenderID,
 				WinnerId:      p.WinnerID,
 				SetScores:     setScores,
-				TimestampMs:   tx.Timestamp.UnixMilli(),
-				TransactionId: tx.ID,
+				TimestampMs:   t.Timestamp.UnixMilli(),
+				TransactionId: t.ID,
 			})
 			count++
 		}
 	}
-	return results, nil
+
+	return matches, nil
 }

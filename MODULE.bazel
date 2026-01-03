@@ -35,6 +35,7 @@ use_repo(
     go_deps,
     "com_github_google_uuid",
     "com_github_improbable_eng_grpc_web",
+    "com_github_icza_backscanner",
     "org_golang_google_grpc",
 )
 
