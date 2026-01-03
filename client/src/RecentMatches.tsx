@@ -33,8 +33,8 @@ const RecentMatches: React.FC<RecentMatchesProps> = ({ players, refreshTrigger }
 
     const formatScore = (setScores: SetScore[]) => {
         return setScores.map(s => {
-            const p1 = s.getPlayer1Default() ? 'D' : s.getPlayer1Points()
-            const p2 = s.getPlayer2Default() ? 'D' : s.getPlayer2Points()
+            const p1 = s.getChallengerDefault() ? 'D' : s.getChallengerPoints()
+            const p2 = s.getDefenderDefault() ? 'D' : s.getDefenderPoints()
             return `${p1}-${p2}`
         }).join(', ')
     }
@@ -57,16 +57,16 @@ const RecentMatches: React.FC<RecentMatchesProps> = ({ players, refreshTrigger }
                     <thead>
                         <tr>
                             <th>Date</th>
-                            <th>Player 1</th>
-                            <th>Player 2</th>
+                            <th>Challenger</th>
+                            <th>Defender</th>
                             <th>Winner</th>
                             <th>Score</th>
                         </tr>
                     </thead>
                     <tbody>
                         {matches.map((match, idx) => {
-                            const p1Name = getPlayerName(match.getPlayer1Id())
-                            const p2Name = getPlayerName(match.getPlayer2Id())
+                            const p1Name = getPlayerName(match.getChallengerId())
+                            const p2Name = getPlayerName(match.getDefenderId())
                             const winnerName = getPlayerName(match.getWinnerId())
 
                             return (

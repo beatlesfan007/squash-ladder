@@ -82,15 +82,15 @@ export const ladderService = {
   },
 
   addMatchResult: async (
-    player1Id: string,
-    player2Id: string,
+    challengerId: string,
+    defenderId: string,
     winnerId: string,
     setScores: SetScore[]
   ): Promise<boolean> => {
     return new Promise((resolve, reject) => {
       const request = new AddMatchResultRequest()
-      request.setPlayer1Id(player1Id)
-      request.setPlayer2Id(player2Id)
+      request.setChallengerId(challengerId)
+      request.setDefenderId(defenderId)
       request.setWinnerId(winnerId)
       request.setSetScoresList(setScores)
 

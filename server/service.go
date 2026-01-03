@@ -54,45 +54,45 @@ func ValidateScore(setScores []*ladderpb.SetScore) (int, error) {
 	for i, s := range setScores {
 		isLastSet := i == len(setScores)-1
 
-		if s.Player1Default || s.Player2Default {
+		if s.ChallengerDefault || s.DefenderDefault {
 			if !isLastSet {
 				return 0, fmt.Errorf("defaulting player must happen in the final set")
 			}
-			if s.Player1Default && s.Player2Default {
+			if s.ChallengerDefault && s.DefenderDefault {
 				return 0, fmt.Errorf("both players cannot default")
 			}
 			// Valid default in final set
-			if s.Player1Default {
-				// Player 1 defaulted, Player 2 wins
+			if s.ChallengerDefault {
+				// Challenger defaulted, Defender wins
 				return 2, nil
 			}
-			// Player 2 defaulted, Player 1 wins
+			// Defender defaulted, Challenger wins
 			return 1, nil
 		}
 
-		p1Points := int(s.Player1Points)
-		p2Points := int(s.Player2Points)
+		challengerPoints := int(s.ChallengerPoints)
+		defenderPoints := int(s.DefenderPoints)
 
 		// Validate set rules: to 11, win by 2
-		if p1Points < 0 || p2Points < 0 {
+		if challengerPoints < 0 || defenderPoints < 0 {
 			return 0, fmt.Errorf("scores cannot be negative")
 		}
 
-		if p1Points < 11 && p2Points < 11 {
-			return 0, fmt.Errorf("set must go to at least 11: %d-%d", p1Points, p2Points)
+		if challengerPoints < 11 && defenderPoints < 11 {
+			return 0, fmt.Errorf("set must go to at least 11: %d-%d", challengerPoints, defenderPoints)
 		}
 
-		diff := p1Points - p2Points
+		diff := challengerPoints - defenderPoints
 		if diff < 0 {
 			diff = -diff
 		}
 
 		if diff < 2 {
-			return 0, fmt.Errorf("must win by 2 points: %d-%d", p1Points, p2Points)
+			return 0, fmt.Errorf("must win by 2 points: %d-%d", challengerPoints, defenderPoints)
 		}
 
 		// Determine winner of set
-		if p1Points > p2Points {
+		if challengerPoints > defenderPoints {
 			p1Sets++
 		} else {
 			p2Sets++
@@ -124,14 +124,15 @@ func (h *LadderService) AddMatchResult(ctx context.Context, req *ladderpb.AddMat
 	}
 
 	// Double check winner matches the score calculation
-	if winnerIdx == 1 && req.WinnerId != req.Player1Id {
-		return &ladderpb.AddMatchResultResponse{Success: false}, fmt.Errorf("scores indicate player 1 won, but winner_id does not match player 1")
+	// 1 = Challenger, 2 = Defender
+	if winnerIdx == 1 && req.WinnerId != req.ChallengerId {
+		return &ladderpb.AddMatchResultResponse{Success: false}, fmt.Errorf("scores indicate challenger won, but winner_id does not match challenger")
 	}
-	if winnerIdx == 2 && req.WinnerId != req.Player2Id {
-		return &ladderpb.AddMatchResultResponse{Success: false}, fmt.Errorf("scores indicate player 2 won, but winner_id does not match player 2")
+	if winnerIdx == 2 && req.WinnerId != req.DefenderId {
+		return &ladderpb.AddMatchResultResponse{Success: false}, fmt.Errorf("scores indicate defender won, but winner_id does not match defender")
 	}
 
-	txID, err := h.model.AddMatchResult(req.Player1Id, req.Player2Id, req.WinnerId, req.SetScores)
+	txID, err := h.model.AddMatchResult(req.ChallengerId, req.DefenderId, req.WinnerId, req.SetScores)
 	if err != nil {
 		return &ladderpb.AddMatchResultResponse{Success: false}, err
 	}

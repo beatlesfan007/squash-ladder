@@ -78,9 +78,9 @@ func TestModel_ApplyMatchResult(t *testing.T) {
 
 	// Charlie (Rank 3) beats Alice (Rank 1)
 	_, err := m.AddMatchResult("charlie", "alice", "charlie", []*ladderpb.SetScore{
-		{Player1Points: 11, Player2Points: 5},
-		{Player1Points: 11, Player2Points: 5},
-		{Player1Points: 11, Player2Points: 5},
+		{ChallengerPoints: 11, DefenderPoints: 5},
+		{ChallengerPoints: 11, DefenderPoints: 5},
+		{ChallengerPoints: 11, DefenderPoints: 5},
 	})
 	if err != nil {
 		t.Fatalf("AddMatchResult failed: %v", err)
@@ -107,9 +107,9 @@ func TestModel_InvalidateMatchResult(t *testing.T) {
 	m.AddPlayer("Bob", "bob")
 
 	txID, _ := m.AddMatchResult("bob", "alice", "bob", []*ladderpb.SetScore{
-		{Player1Points: 11, Player2Points: 5},
-		{Player1Points: 11, Player2Points: 5},
-		{Player1Points: 11, Player2Points: 5},
+		{ChallengerPoints: 11, DefenderPoints: 5},
+		{ChallengerPoints: 11, DefenderPoints: 5},
+		{ChallengerPoints: 11, DefenderPoints: 5},
 	})
 
 	// Bob should be #1 now
@@ -135,8 +135,8 @@ func TestModel_GetRecentMatches(t *testing.T) {
 	m.AddPlayer("Alice", "alice")
 	m.AddPlayer("Bob", "bob")
 
-	m.AddMatchResult("alice", "bob", "alice", []*ladderpb.SetScore{{Player1Points: 11, Player2Points: 0}, {Player1Points: 11, Player2Points: 0}, {Player1Points: 11, Player2Points: 0}})
-	m.AddMatchResult("bob", "alice", "bob", []*ladderpb.SetScore{{Player2Points: 11, Player1Points: 0}, {Player2Points: 11, Player1Points: 0}, {Player2Points: 11, Player1Points: 0}})
+	m.AddMatchResult("alice", "bob", "alice", []*ladderpb.SetScore{{ChallengerPoints: 11, DefenderPoints: 0}, {ChallengerPoints: 11, DefenderPoints: 0}, {ChallengerPoints: 11, DefenderPoints: 0}})
+	m.AddMatchResult("bob", "alice", "bob", []*ladderpb.SetScore{{DefenderPoints: 11, ChallengerPoints: 0}, {DefenderPoints: 11, ChallengerPoints: 0}, {DefenderPoints: 11, ChallengerPoints: 0}})
 
 	matches, err := m.GetRecentMatches(10)
 	if err != nil {
@@ -160,9 +160,9 @@ func TestModel_Persistence(t *testing.T) {
 	m.AddPlayer("Alice", "alice")
 	m.AddPlayer("Bob", "bob")
 	m.AddMatchResult("bob", "alice", "bob", []*ladderpb.SetScore{
-		{Player1Points: 11, Player2Points: 5},
-		{Player1Points: 11, Player2Points: 5},
-		{Player1Points: 11, Player2Points: 5},
+		{ChallengerPoints: 11, DefenderPoints: 5},
+		{ChallengerPoints: 11, DefenderPoints: 5},
+		{ChallengerPoints: 11, DefenderPoints: 5},
 	})
 
 	// Load new model from same file

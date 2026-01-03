@@ -37,15 +37,15 @@ message RemovePlayerResponse {
 }
 
 message SetScore {
-  int32 player1_points = 1;
-  int32 player2_points = 2;
-  bool player1_default = 3;
-  bool player2_default = 4;
+  int32 challenger_points = 1;
+  int32 defender_points = 2;
+  bool challenger_default = 3;
+  bool defender_default = 4;
 }
 
 message MatchResult {
-  string player1_id = 1;
-  string player2_id = 2;
+  string challenger_id = 1;
+  string defender_id = 2;
   string winner_id = 3;
   // Individual set scores
   repeated SetScore set_scores = 4;
@@ -54,8 +54,8 @@ message MatchResult {
 }
 
 message AddMatchResultRequest {
-  string player1_id = 1;
-  string player2_id = 2;
+  string challenger_id = 1;
+  string defender_id = 2;
   string winner_id = 3;
   repeated SetScore set_scores = 4;
 }

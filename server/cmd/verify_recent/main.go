@@ -67,13 +67,13 @@ func main() {
 	fmt.Println("Adding matches...")
 	for i := 0; i < 5; i++ {
 		_, err = c.AddMatchResult(ctx, &ladderpb.AddMatchResultRequest{
-			Player1Id: p1.Player.Id,
-			Player2Id: p2.Player.Id,
-			WinnerId:  p1.Player.Id,
+			ChallengerId: p1.Player.Id,
+			DefenderId:   p2.Player.Id,
+			WinnerId:     p1.Player.Id,
 			SetScores: []*ladderpb.SetScore{
-				{Player1Points: 11, Player2Points: 5},
-				{Player1Points: 11, Player2Points: 5},
-				{Player1Points: 11, Player2Points: 5},
+				{ChallengerPoints: 11, DefenderPoints: 5},
+				{ChallengerPoints: 11, DefenderPoints: 5},
+				{ChallengerPoints: 11, DefenderPoints: 5},
 			},
 		})
 		if err != nil {

@@ -44,18 +44,18 @@ type RemovePlayerPayload struct {
 // MatchResultPayload payload for a match result
 // SetScorePayload payload for a single set
 type SetScorePayload struct {
-	Player1Points  int32 `json:"player1_points"`
-	Player2Points  int32 `json:"player2_points"`
-	Player1Default bool  `json:"player1_default,omitempty"`
-	Player2Default bool  `json:"player2_default,omitempty"`
+	ChallengerPoints  int32 `json:"challenger_points"`
+	DefenderPoints    int32 `json:"defender_points"`
+	ChallengerDefault bool  `json:"challenger_default,omitempty"`
+	DefenderDefault   bool  `json:"defender_default,omitempty"`
 }
 
 // MatchResultPayload payload for a match result
 type MatchResultPayload struct {
-	Player1ID string            `json:"player1_id"`
-	Player2ID string            `json:"player2_id"`
-	WinnerID  string            `json:"winner_id"`
-	SetScores []SetScorePayload `json:"set_scores"`
+	ChallengerID string            `json:"challenger_id"`
+	DefenderID   string            `json:"defender_id"`
+	WinnerID     string            `json:"winner_id"`
+	SetScores    []SetScorePayload `json:"set_scores"`
 }
 
 // Model manages the state of the squash ladder
@@ -142,7 +142,7 @@ func (m *Model) applyTransaction(tx *Transaction) error {
 		if err := json.Unmarshal(tx.Payload, &p); err != nil {
 			return err
 		}
-		m.applyMatchResultInternal(p.Player1ID, p.Player2ID, p.WinnerID)
+		m.applyMatchResultInternal(p.ChallengerID, p.DefenderID, p.WinnerID)
 	}
 	return nil
 }
@@ -168,32 +168,32 @@ func (m *Model) removePlayerInternal(playerID string) {
 	}
 }
 
-func (m *Model) applyMatchResultInternal(p1ID, p2ID, winnerID string) {
-	p1Idx := -1
-	p2Idx := -1
+func (m *Model) applyMatchResultInternal(challengerID, defenderID, winnerID string) {
+	challengerIdx := -1
+	defenderIdx := -1
 
 	for i, p := range m.Players {
-		if p.Id == p1ID {
-			p1Idx = i
+		if p.Id == challengerID {
+			challengerIdx = i
 		}
-		if p.Id == p2ID {
-			p2Idx = i
+		if p.Id == defenderID {
+			defenderIdx = i
 		}
 	}
 
-	if p1Idx == -1 || p2Idx == -1 {
+	if challengerIdx == -1 || defenderIdx == -1 {
 		return
 	}
 
 	winnerIdx := -1
 	loserIdx := -1
 
-	if winnerID == p1ID {
-		winnerIdx = p1Idx
-		loserIdx = p2Idx
+	if winnerID == challengerID {
+		winnerIdx = challengerIdx
+		loserIdx = defenderIdx
 	} else {
-		winnerIdx = p2Idx
-		loserIdx = p1Idx
+		winnerIdx = defenderIdx
+		loserIdx = challengerIdx
 	}
 
 	// If winner is lower rank (higher index value), they take loser's spot
@@ -324,28 +324,28 @@ func (m *Model) RemovePlayer(playerID string) error {
 }
 
 // AddMatchResult records a match
-func (m *Model) AddMatchResult(p1ID, p2ID, winnerID string, setScores []*ladderpb.SetScore) (string, error) {
+func (m *Model) AddMatchResult(challengerID, defenderID, winnerID string, setScores []*ladderpb.SetScore) (string, error) {
 	// Note: Validation logic moved to service layer
 
-	if winnerID != p1ID && winnerID != p2ID {
+	if winnerID != challengerID && winnerID != defenderID {
 		return "", fmt.Errorf("winner must be one of the players")
 	}
 
 	payloadSets := make([]SetScorePayload, len(setScores))
 	for i, s := range setScores {
 		payloadSets[i] = SetScorePayload{
-			Player1Points:  s.Player1Points,
-			Player2Points:  s.Player2Points,
-			Player1Default: s.Player1Default,
-			Player2Default: s.Player2Default,
+			ChallengerPoints:  s.ChallengerPoints,
+			DefenderPoints:    s.DefenderPoints,
+			ChallengerDefault: s.ChallengerDefault,
+			DefenderDefault:   s.DefenderDefault,
 		}
 	}
 
 	payload_bytes, _ := json.Marshal(MatchResultPayload{
-		Player1ID: p1ID,
-		Player2ID: p2ID,
-		WinnerID:  winnerID,
-		SetScores: payloadSets,
+		ChallengerID: challengerID,
+		DefenderID:   defenderID,
+		WinnerID:     winnerID,
+		SetScores:    payloadSets,
 	})
 
 	tx := &Transaction{
@@ -437,16 +437,16 @@ func (m *Model) GetRecentMatches(limit int32) ([]*ladderpb.MatchResult, error) {
 			setScores := make([]*ladderpb.SetScore, len(p.SetScores))
 			for j, s := range p.SetScores {
 				setScores[j] = &ladderpb.SetScore{
-					Player1Points:  s.Player1Points,
-					Player2Points:  s.Player2Points,
-					Player1Default: s.Player1Default,
-					Player2Default: s.Player2Default,
+					ChallengerPoints:  s.ChallengerPoints,
+					DefenderPoints:    s.DefenderPoints,
+					ChallengerDefault: s.ChallengerDefault,
+					DefenderDefault:   s.DefenderDefault,
 				}
 			}
 
 			results = append(results, &ladderpb.MatchResult{
-				Player1Id:     p.Player1ID,
-				Player2Id:     p.Player2ID,
+				ChallengerId:  p.ChallengerID,
+				DefenderId:    p.DefenderID,
 				WinnerId:      p.WinnerID,
 				SetScores:     setScores,
 				TimestampMs:   tx.Timestamp.UnixMilli(),

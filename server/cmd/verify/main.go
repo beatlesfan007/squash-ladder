@@ -90,14 +90,14 @@ func main() {
 	// New Order: 1. Charlie, 2. Alice, 3. Bob
 	fmt.Println("\nMatch: Charlie beats Alice (11-9, 11-8, 9-11, 11-5)")
 	_, err = c.AddMatchResult(ctx, &ladderpb.AddMatchResultRequest{
-		Player1Id: alice.Player.Id,
-		Player2Id: charlie.Player.Id,
-		WinnerId:  charlie.Player.Id,
+		ChallengerId: alice.Player.Id,
+		DefenderId:   charlie.Player.Id,
+		WinnerId:     charlie.Player.Id,
 		SetScores: []*ladderpb.SetScore{
-			{Player1Points: 9, Player2Points: 11},
-			{Player1Points: 8, Player2Points: 11},
-			{Player1Points: 11, Player2Points: 9},
-			{Player1Points: 5, Player2Points: 11},
+			{ChallengerPoints: 9, DefenderPoints: 11},
+			{ChallengerPoints: 8, DefenderPoints: 11},
+			{ChallengerPoints: 11, DefenderPoints: 9},
+			{ChallengerPoints: 5, DefenderPoints: 11},
 		},
 	})
 	if err != nil {

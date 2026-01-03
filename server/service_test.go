@@ -18,9 +18,9 @@ func TestValidateScore(t *testing.T) {
 		{
 			name: "Valid 3-0 win",
 			scores: []*ladderpb.SetScore{
-				{Player1Points: 11, Player2Points: 5},
-				{Player1Points: 11, Player2Points: 5},
-				{Player1Points: 11, Player2Points: 5},
+				{ChallengerPoints: 11, DefenderPoints: 5},
+				{ChallengerPoints: 11, DefenderPoints: 5},
+				{ChallengerPoints: 11, DefenderPoints: 5},
 			},
 			wantWinner: 1,
 			wantErr:    false,
@@ -28,11 +28,11 @@ func TestValidateScore(t *testing.T) {
 		{
 			name: "Valid 3-2 win",
 			scores: []*ladderpb.SetScore{
-				{Player1Points: 11, Player2Points: 5},
-				{Player1Points: 5, Player2Points: 11},
-				{Player1Points: 11, Player2Points: 5},
-				{Player1Points: 5, Player2Points: 11},
-				{Player1Points: 11, Player2Points: 5},
+				{ChallengerPoints: 11, DefenderPoints: 5},
+				{ChallengerPoints: 5, DefenderPoints: 11},
+				{ChallengerPoints: 11, DefenderPoints: 5},
+				{ChallengerPoints: 5, DefenderPoints: 11},
+				{ChallengerPoints: 11, DefenderPoints: 5},
 			},
 			wantWinner: 1,
 			wantErr:    false,
@@ -40,7 +40,7 @@ func TestValidateScore(t *testing.T) {
 		{
 			name: "Must win by 2",
 			scores: []*ladderpb.SetScore{
-				{Player1Points: 11, Player2Points: 10},
+				{ChallengerPoints: 11, DefenderPoints: 10},
 			},
 			wantWinner: 0,
 			wantErr:    true,
@@ -48,7 +48,7 @@ func TestValidateScore(t *testing.T) {
 		{
 			name: "Set must go to 11",
 			scores: []*ladderpb.SetScore{
-				{Player1Points: 5, Player2Points: 2},
+				{ChallengerPoints: 5, DefenderPoints: 2},
 			},
 			wantWinner: 0,
 			wantErr:    true,
@@ -56,8 +56,8 @@ func TestValidateScore(t *testing.T) {
 		{
 			name: "Default in final set",
 			scores: []*ladderpb.SetScore{
-				{Player1Points: 11, Player2Points: 5},
-				{Player1Default: true},
+				{ChallengerPoints: 11, DefenderPoints: 5},
+				{ChallengerDefault: true},
 			},
 			wantWinner: 2,
 			wantErr:    false,
@@ -65,8 +65,8 @@ func TestValidateScore(t *testing.T) {
 		{
 			name: "Default not in final set",
 			scores: []*ladderpb.SetScore{
-				{Player1Default: true},
-				{Player1Points: 11, Player2Points: 5},
+				{ChallengerDefault: true},
+				{ChallengerPoints: 11, DefenderPoints: 5},
 			},
 			wantWinner: 0,
 			wantErr:    true,
@@ -74,7 +74,7 @@ func TestValidateScore(t *testing.T) {
 		{
 			name: "Negative scores",
 			scores: []*ladderpb.SetScore{
-				{Player1Points: -1, Player2Points: 5},
+				{ChallengerPoints: -1, DefenderPoints: 5},
 			},
 			wantWinner: 0,
 			wantErr:    true,
@@ -82,7 +82,7 @@ func TestValidateScore(t *testing.T) {
 		{
 			name: "Both players default",
 			scores: []*ladderpb.SetScore{
-				{Player1Default: true, Player2Default: true},
+				{ChallengerDefault: true, DefenderDefault: true},
 			},
 			wantWinner: 0,
 			wantErr:    true,
@@ -90,8 +90,8 @@ func TestValidateScore(t *testing.T) {
 		{
 			name: "Player 2 defaults",
 			scores: []*ladderpb.SetScore{
-				{Player1Points: 11, Player2Points: 5},
-				{Player2Default: true},
+				{ChallengerPoints: 11, DefenderPoints: 5},
+				{DefenderDefault: true},
 			},
 			wantWinner: 1,
 			wantErr:    false,
@@ -99,10 +99,10 @@ func TestValidateScore(t *testing.T) {
 		{
 			name: "Too many sets",
 			scores: []*ladderpb.SetScore{
-				{Player1Points: 11, Player2Points: 5},
-				{Player1Points: 11, Player2Points: 5},
-				{Player1Points: 11, Player2Points: 5},
-				{Player1Points: 11, Player2Points: 5}, // 4th set win
+				{ChallengerPoints: 11, DefenderPoints: 5},
+				{ChallengerPoints: 11, DefenderPoints: 5},
+				{ChallengerPoints: 11, DefenderPoints: 5},
+				{ChallengerPoints: 11, DefenderPoints: 5}, // 4th set win
 			},
 			wantWinner: 0,
 			wantErr:    true,
@@ -110,8 +110,8 @@ func TestValidateScore(t *testing.T) {
 		{
 			name: "Not enough sets",
 			scores: []*ladderpb.SetScore{
-				{Player1Points: 11, Player2Points: 5},
-				{Player1Points: 11, Player2Points: 5},
+				{ChallengerPoints: 11, DefenderPoints: 5},
+				{ChallengerPoints: 11, DefenderPoints: 5},
 			},
 			wantWinner: 0,
 			wantErr:    true,
@@ -119,9 +119,9 @@ func TestValidateScore(t *testing.T) {
 		{
 			name: "Extended play win",
 			scores: []*ladderpb.SetScore{
-				{Player1Points: 12, Player2Points: 10},
-				{Player1Points: 15, Player2Points: 13},
-				{Player1Points: 11, Player2Points: 9},
+				{ChallengerPoints: 12, DefenderPoints: 10},
+				{ChallengerPoints: 15, DefenderPoints: 13},
+				{ChallengerPoints: 11, DefenderPoints: 9},
 			},
 			wantWinner: 1,
 			wantErr:    false,
@@ -129,7 +129,7 @@ func TestValidateScore(t *testing.T) {
 		{
 			name: "Extended play invalid win",
 			scores: []*ladderpb.SetScore{
-				{Player1Points: 12, Player2Points: 11},
+				{ChallengerPoints: 12, DefenderPoints: 11},
 			},
 			wantWinner: 0,
 			wantErr:    true,
@@ -161,13 +161,13 @@ func TestLadderService_AddMatchResult(t *testing.T) {
 
 	// Valid result
 	resp, err := svc.AddMatchResult(context.Background(), &ladderpb.AddMatchResultRequest{
-		Player1Id: "alice",
-		Player2Id: "bob",
-		WinnerId:  "bob",
+		ChallengerId: "alice",
+		DefenderId:   "bob",
+		WinnerId:     "bob",
 		SetScores: []*ladderpb.SetScore{
-			{Player2Points: 11, Player1Points: 0},
-			{Player2Points: 11, Player1Points: 0},
-			{Player2Points: 11, Player1Points: 0},
+			{DefenderPoints: 11, ChallengerPoints: 0},
+			{DefenderPoints: 11, ChallengerPoints: 0},
+			{DefenderPoints: 11, ChallengerPoints: 0},
 		},
 	})
 
@@ -180,13 +180,13 @@ func TestLadderService_AddMatchResult(t *testing.T) {
 
 	// Inconsistent winner
 	_, err = svc.AddMatchResult(context.Background(), &ladderpb.AddMatchResultRequest{
-		Player1Id: "alice",
-		Player2Id: "bob",
-		WinnerId:  "alice", // Alice didn't win according to scores
+		ChallengerId: "alice",
+		DefenderId:   "bob",
+		WinnerId:     "alice", // Alice didn't win according to scores
 		SetScores: []*ladderpb.SetScore{
-			{Player2Points: 11, Player1Points: 0},
-			{Player2Points: 11, Player1Points: 0},
-			{Player2Points: 11, Player1Points: 0},
+			{DefenderPoints: 11, ChallengerPoints: 0},
+			{DefenderPoints: 11, ChallengerPoints: 0},
+			{DefenderPoints: 11, ChallengerPoints: 0},
 		},
 	})
 	if err == nil {
@@ -201,9 +201,9 @@ func TestLadderService_ListRecentMatches(t *testing.T) {
 	m.AddPlayer("Alice", "alice")
 	m.AddPlayer("Bob", "bob")
 	m.AddMatchResult("alice", "bob", "alice", []*ladderpb.SetScore{
-		{Player1Points: 11, Player2Points: 0},
-		{Player1Points: 11, Player2Points: 0},
-		{Player1Points: 11, Player2Points: 0},
+		{ChallengerPoints: 11, DefenderPoints: 0},
+		{ChallengerPoints: 11, DefenderPoints: 0},
+		{ChallengerPoints: 11, DefenderPoints: 0},
 	})
 
 	svc := NewLadderService(m)

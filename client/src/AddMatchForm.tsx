@@ -7,8 +7,8 @@ interface AddMatchFormProps {
 }
 
 const AddMatchForm: React.FC<AddMatchFormProps> = ({ players, onMatchAdded }) => {
-    const [player1Id, setPlayer1Id] = useState('')
-    const [player2Id, setPlayer2Id] = useState('')
+    const [challengerId, setChallengerId] = useState('')
+    const [defenderId, setDefenderId] = useState('')
     const [winnerId, setWinnerId] = useState('')
     const [scoreInput, setScoreInput] = useState('')
     const [loading, setLoading] = useState(false)
@@ -16,17 +16,17 @@ const AddMatchForm: React.FC<AddMatchFormProps> = ({ players, onMatchAdded }) =>
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!player1Id || !player2Id || !winnerId || !scoreInput) {
+        if (!challengerId || !defenderId || !winnerId || !scoreInput) {
             setError('Please fill in all fields')
             return
         }
 
-        if (player1Id === player2Id) {
-            setError('Player 1 and Player 2 must be different')
+        if (challengerId === defenderId) {
+            setError('Challenger and Defender must be different')
             return
         }
 
-        if (winnerId !== player1Id && winnerId !== player2Id) {
+        if (winnerId !== challengerId && winnerId !== defenderId) {
             setError('Winner must be one of the selected players')
             return
         }
@@ -37,11 +37,11 @@ const AddMatchForm: React.FC<AddMatchFormProps> = ({ players, onMatchAdded }) =>
 
             const setScores = parseScores(scoreInput)
 
-            await ladderService.addMatchResult(player1Id, player2Id, winnerId, setScores)
+            await ladderService.addMatchResult(challengerId, defenderId, winnerId, setScores)
 
             // Reset form
-            setPlayer1Id('')
-            setPlayer2Id('')
+            setChallengerId('')
+            setDefenderId('')
             setWinnerId('')
             setScoreInput('')
             onMatchAdded()
@@ -62,33 +62,33 @@ const AddMatchForm: React.FC<AddMatchFormProps> = ({ players, onMatchAdded }) =>
                 throw new Error(`Invalid score format: "${set}". Use format like "11-9"`)
             }
 
-            const p1ScoreStr = parts[0].trim()
-            const p2ScoreStr = parts[1].trim()
+            const challengerScoreStr = parts[0].trim()
+            const defenderScoreStr = parts[1].trim()
 
-            let p1Points = 0
-            let p2Points = 0
-            let p1Default = false
-            let p2Default = false
+            let challengerPoints = 0
+            let defenderPoints = 0
+            let challengerDefault = false
+            let defenderDefault = false
 
-            if (p1ScoreStr.toUpperCase() === 'D') {
-                p1Default = true
+            if (challengerScoreStr.toUpperCase() === 'D') {
+                challengerDefault = true
             } else {
-                p1Points = parseInt(p1ScoreStr)
-                if (isNaN(p1Points)) throw new Error(`Invalid score number: "${p1ScoreStr}"`)
+                challengerPoints = parseInt(challengerScoreStr)
+                if (isNaN(challengerPoints)) throw new Error(`Invalid score number: "${challengerScoreStr}"`)
             }
 
-            if (p2ScoreStr.toUpperCase() === 'D') {
-                p2Default = true
+            if (defenderScoreStr.toUpperCase() === 'D') {
+                defenderDefault = true
             } else {
-                p2Points = parseInt(p2ScoreStr)
-                if (isNaN(p2Points)) throw new Error(`Invalid score number: "${p2ScoreStr}"`)
+                defenderPoints = parseInt(defenderScoreStr)
+                if (isNaN(defenderPoints)) throw new Error(`Invalid score number: "${defenderScoreStr}"`)
             }
 
             const setScore = new SetScore()
-            setScore.setPlayer1Points(p1Points)
-            setScore.setPlayer2Points(p2Points)
-            setScore.setPlayer1Default(p1Default)
-            setScore.setPlayer2Default(p2Default)
+            setScore.setChallengerPoints(challengerPoints)
+            setScore.setDefenderPoints(defenderPoints)
+            setScore.setChallengerDefault(challengerDefault)
+            setScore.setDefenderDefault(defenderDefault)
 
             setScores.push(setScore)
         }
@@ -100,9 +100,9 @@ const AddMatchForm: React.FC<AddMatchFormProps> = ({ players, onMatchAdded }) =>
             <h3>Record Match Result</h3>
             <form onSubmit={handleSubmit} className="add-match-form">
                 <div className="form-group">
-                    <label>Player 1:</label>
-                    <select value={player1Id} onChange={(e) => setPlayer1Id(e.target.value)} disabled={loading}>
-                        <option value="">Select Player 1</option>
+                    <label>Challenger:</label>
+                    <select value={challengerId} onChange={(e) => setChallengerId(e.target.value)} disabled={loading}>
+                        <option value="">Select Challenger</option>
                         {players.map(p => (
                             <option key={p.getId()} value={p.getId()}>{p.getName()}</option>
                         ))}
@@ -110,9 +110,9 @@ const AddMatchForm: React.FC<AddMatchFormProps> = ({ players, onMatchAdded }) =>
                 </div>
 
                 <div className="form-group">
-                    <label>Player 2:</label>
-                    <select value={player2Id} onChange={(e) => setPlayer2Id(e.target.value)} disabled={loading}>
-                        <option value="">Select Player 2</option>
+                    <label>Defender:</label>
+                    <select value={defenderId} onChange={(e) => setDefenderId(e.target.value)} disabled={loading}>
+                        <option value="">Select Defender</option>
                         {players.map(p => (
                             <option key={p.getId()} value={p.getId()}>{p.getName()}</option>
                         ))}
@@ -126,23 +126,23 @@ const AddMatchForm: React.FC<AddMatchFormProps> = ({ players, onMatchAdded }) =>
                             <input
                                 type="radio"
                                 name="winner"
-                                value={player1Id}
-                                checked={winnerId === player1Id && player1Id !== ''}
-                                onChange={() => setWinnerId(player1Id)}
-                                disabled={!player1Id || loading}
+                                value={challengerId}
+                                checked={winnerId === challengerId && challengerId !== ''}
+                                onChange={() => setWinnerId(challengerId)}
+                                disabled={!challengerId || loading}
                             />
-                            Player 1
+                            Challenger
                         </label>
                         <label>
                             <input
                                 type="radio"
                                 name="winner"
-                                value={player2Id}
-                                checked={winnerId === player2Id && player2Id !== ''}
-                                onChange={() => setWinnerId(player2Id)}
-                                disabled={!player2Id || loading}
+                                value={defenderId}
+                                checked={winnerId === defenderId && defenderId !== ''}
+                                onChange={() => setWinnerId(defenderId)}
+                                disabled={!defenderId || loading}
                             />
-                            Player 2
+                            Defender
                         </label>
                     </div>
                 </div>
