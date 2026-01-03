@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package storage;
+
+option go_package = "squash-ladder/server/gen/storage";
+
+// Helper message for Player to avoid dependency on ladder.proto
+message PlayerStorage {
+  string id = 1;
+  string name = 2;
+  int32 rank = 3;
+}
+
+message AddPlayerStorage {
+  string player_id = 1;
+  string name = 2;
+}
+
+message RemovePlayerStorage {
+  string player_id = 1;
+}
+
+message SetScoreStorage {
+  int32 challenger_points = 1;
+  int32 defender_points = 2;
+  bool challenger_default = 3;
+  bool defender_default = 4;
+}
+
+message MatchResultStorage {
+  string challenger_id = 1;
+  string defender_id = 2;
+  string winner_id = 3;
+  repeated SetScoreStorage set_scores = 4;
+}
+
+message InvalidateMatchStorage {
+  string invalidated_transaction_id = 1;
+}
+
+enum TransactionType {
+  UNKNOWN = 0;
+  ADD_PLAYER = 1;
+  REMOVE_PLAYER = 2;
+  MATCH_RESULT = 3;
+  INVALIDATE_MATCH = 4;
+}
+
+message TransactionStorage {
+  string id = 1;
+  TransactionType type = 2;
+  int64 timestamp_ms = 3; // Epoch milliseconds
+  
+  oneof payload {
+    AddPlayerStorage add_player_payload = 4;
+    RemovePlayerStorage remove_player_payload = 5;
+    MatchResultStorage match_result_payload = 6;
+    InvalidateMatchStorage invalidate_match_payload = 7;
+  }
+  
+  repeated PlayerStorage player_list = 8;
+}

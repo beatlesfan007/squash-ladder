@@ -1,7 +1,7 @@
 package server
 
 import (
-	"encoding/json"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
@@ -9,61 +9,12 @@ import (
 	"time"
 
 	ladderpb "squash-ladder/server/gen/ladder"
+	storagepb "squash-ladder/server/gen/storage"
 
 	"github.com/google/uuid"
 	"github.com/icza/backscanner"
+	"google.golang.org/protobuf/proto"
 )
-
-// TransactionType defines the type of transaction
-type TransactionType string
-
-const (
-	TxAddPlayer       TransactionType = "ADD_PLAYER"
-	TxRemovePlayer    TransactionType = "REMOVE_PLAYER"
-	TxMatchResult     TransactionType = "MATCH_RESULT"
-	TxInvalidateMatch TransactionType = "INVALIDATE_MATCH"
-)
-
-// Transaction represents a single operation in the log
-type Transaction struct {
-	ID         string             `json:"id"`
-	Type       TransactionType    `json:"type"`
-	Timestamp  time.Time          `json:"timestamp"`
-	Payload    json.RawMessage    `json:"payload"`
-	PlayerList []*ladderpb.Player `json:"player_list"`
-}
-
-// AddPlayerPayload payload for adding a player
-type AddPlayerPayload struct {
-	PlayerID string `json:"player_id"`
-	Name     string `json:"name"`
-}
-
-// RemovePlayerPayload payload for removing a player
-type RemovePlayerPayload struct {
-	PlayerID string `json:"player_id"`
-}
-
-// MatchResultPayload payload for a match result
-// SetScorePayload payload for a single set
-type SetScorePayload struct {
-	ChallengerPoints  int32 `json:"challenger_points"`
-	DefenderPoints    int32 `json:"defender_points"`
-	ChallengerDefault bool  `json:"challenger_default,omitempty"`
-	DefenderDefault   bool  `json:"defender_default,omitempty"`
-}
-
-// MatchResultPayload payload for a match result
-type MatchResultPayload struct {
-	ChallengerID string            `json:"challenger_id"`
-	DefenderID   string            `json:"defender_id"`
-	WinnerID     string            `json:"winner_id"`
-	SetScores    []SetScorePayload `json:"set_scores"`
-}
-
-type InvalidateMatchPayload struct {
-	InvalidatedTransactionID string `json:"invalidated_transaction_id"`
-}
 
 // Model manages the state of the squash ladder
 type Model struct {
@@ -76,6 +27,32 @@ func NewModel(logFilePath string) (*Model, error) {
 	return &Model{
 		LogFilePath: logFilePath,
 	}, nil
+}
+
+// Helper to convert storage players to ladder players
+func storageToLadder(sPlayers []*storagepb.PlayerStorage) []*ladderpb.Player {
+	lPlayers := make([]*ladderpb.Player, len(sPlayers))
+	for i, sp := range sPlayers {
+		lPlayers[i] = &ladderpb.Player{
+			Id:   sp.Id,
+			Name: sp.Name,
+			Rank: sp.Rank,
+		}
+	}
+	return lPlayers
+}
+
+// Helper to convert ladder players to storage players
+func ladderToStorage(lPlayers []*ladderpb.Player) []*storagepb.PlayerStorage {
+	sPlayers := make([]*storagepb.PlayerStorage, len(lPlayers))
+	for i, lp := range lPlayers {
+		sPlayers[i] = &storagepb.PlayerStorage{
+			Id:   lp.Id,
+			Name: lp.Name,
+			Rank: lp.Rank,
+		}
+	}
+	return sPlayers
 }
 
 // CurrentState reads the log backwards to find the last transaction and return its player list
@@ -116,28 +93,28 @@ func (m *Model) CurrentState() ([]*ladderpb.Player, error) {
 			continue
 		}
 
-		var lastTx Transaction
-		if err := json.Unmarshal([]byte(line), &lastTx); err != nil {
-			// If we can't parse the last line, maybe it's corrupted or partial?
-			// We could try providing the previous line... but in a strict append log,
-			// the last line should be valid.
-			return nil, fmt.Errorf("failed to parse last transaction: %v", err)
+		// Decode Base64
+		data, err := base64.StdEncoding.DecodeString(line)
+		if err != nil {
+			// If we can't decode, maybe it's corrupted or old format?
+			// We treat it as error for now.
+			return nil, fmt.Errorf("failed to decode line: %v", err)
 		}
 
-		if lastTx.PlayerList == nil {
-			return []*ladderpb.Player{}, nil
+		var lastTx storagepb.TransactionStorage
+		if err := proto.Unmarshal(data, &lastTx); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal last transaction: %v", err)
 		}
-		return lastTx.PlayerList, nil
+
+		return storageToLadder(lastTx.PlayerList), nil
 	}
 }
 
-// applyTransactionLogic calculates the NEW player state based on a transaction and previous state.
-// It returns the new list of players. Not to be confused with applying to a stateful Model.
-func (m *Model) applyTransactionLogic(txType TransactionType, payload json.RawMessage, currentPlayers []*ladderpb.Player) ([]*ladderpb.Player, error) {
-	// Deep copy players to avoid mutating the passed slice if it's used elsewhere
+// applyTransactionLogic calculates the NEW player state based on a transaction type and payload.
+func (m *Model) applyTransactionLogic(txType storagepb.TransactionType, payload interface{}, currentPlayers []*ladderpb.Player) ([]*ladderpb.Player, error) {
+	// Deep copy players
 	players := make([]*ladderpb.Player, len(currentPlayers))
 	for i, p := range currentPlayers {
-		// Create a new struct copy manually to avoid copying the mutex in MessageState
 		players[i] = &ladderpb.Player{
 			Id:   p.Id,
 			Name: p.Name,
@@ -146,32 +123,32 @@ func (m *Model) applyTransactionLogic(txType TransactionType, payload json.RawMe
 	}
 
 	switch txType {
-	case TxAddPlayer:
-		var p AddPlayerPayload
-		if err := json.Unmarshal(payload, &p); err != nil {
-			return nil, err
+	case storagepb.TransactionType_ADD_PLAYER:
+		p, ok := payload.(*storagepb.AddPlayerStorage)
+		if !ok {
+			return nil, fmt.Errorf("invalid payload type for ADD_PLAYER")
 		}
 		// Check duplicates
 		for _, pl := range players {
-			if pl.Id == p.PlayerID {
+			if pl.Id == p.PlayerId {
 				return nil, fmt.Errorf("player ID already exists")
 			}
 		}
 		newPlayer := &ladderpb.Player{
-			Id:   p.PlayerID,
+			Id:   p.PlayerId,
 			Name: p.Name,
 			Rank: int32(len(players) + 1),
 		}
 		players = append(players, newPlayer)
 
-	case TxRemovePlayer:
-		var p RemovePlayerPayload
-		if err := json.Unmarshal(payload, &p); err != nil {
-			return nil, err
+	case storagepb.TransactionType_REMOVE_PLAYER:
+		p, ok := payload.(*storagepb.RemovePlayerStorage)
+		if !ok {
+			return nil, fmt.Errorf("invalid payload type for REMOVE_PLAYER")
 		}
 		idx := -1
 		for i, pl := range players {
-			if pl.Id == p.PlayerID {
+			if pl.Id == p.PlayerId {
 				idx = i
 				break
 			}
@@ -185,33 +162,30 @@ func (m *Model) applyTransactionLogic(txType TransactionType, payload json.RawMe
 			players[i].Rank = int32(i + 1)
 		}
 
-	case TxMatchResult:
-		var p MatchResultPayload
-		if err := json.Unmarshal(payload, &p); err != nil {
-			return nil, err
+	case storagepb.TransactionType_MATCH_RESULT:
+		p, ok := payload.(*storagepb.MatchResultStorage)
+		if !ok {
+			return nil, fmt.Errorf("invalid payload type for MATCH_RESULT")
 		}
 
 		challengerIdx := -1
 		defenderIdx := -1
 		for i, pl := range players {
-			if pl.Id == p.ChallengerID {
+			if pl.Id == p.ChallengerId {
 				challengerIdx = i
 			}
-			if pl.Id == p.DefenderID {
+			if pl.Id == p.DefenderId {
 				defenderIdx = i
 			}
 		}
 
 		if challengerIdx == -1 || defenderIdx == -1 {
-			// If players missing, we might ignore or error?
-			// For replay safety, if a player is missing (maybe removed?), we can error or no-op.
-			// Current logic enforces they exist.
 			return nil, fmt.Errorf("challenger or defender not found")
 		}
 
 		winnerIdx := -1
 		loserIdx := -1
-		if p.WinnerID == p.ChallengerID {
+		if p.WinnerId == p.ChallengerId {
 			winnerIdx = challengerIdx
 			loserIdx = defenderIdx
 		} else {
@@ -219,6 +193,7 @@ func (m *Model) applyTransactionLogic(txType TransactionType, payload json.RawMe
 			loserIdx = challengerIdx
 		}
 
+		// Only change rank if winner is below loser
 		if winnerIdx > loserIdx {
 			// Winner takes loser's position
 			winner := players[winnerIdx]
@@ -235,17 +210,9 @@ func (m *Model) applyTransactionLogic(txType TransactionType, payload json.RawMe
 			}
 		}
 
-	case TxInvalidateMatch:
-		// Should not be applied recursively.
-		// If we are applying a TxInvalidateMatch, it means we ARE replaying.
-		// But wait, applyTransactionLogic is used to COMPUTE the state for a NEW transaction.
-		// If the new transaction is itself an InvalidateMatch, the "payload" logic is complex:
-		// It requires re-reading the whole history.
-		// So this helper might not be suitable for TxInvalidateMatch logic directly
-		// unless we pass the computed state in.
-		// Actually, for InvalidateMatch, the state IS the result of the replay.
-		// So we don't "apply" it to `currentPlayers` in the same way.
-		// We'll handle InvalidateMatch separately in the public method.
+	case storagepb.TransactionType_INVALIDATE_MATCH:
+		// We don't apply logic on top of current state for invalidation
+		// because invalidation requires replay.
 		return currentPlayers, nil
 	}
 
@@ -259,9 +226,6 @@ func (m *Model) ListPlayers() []*ladderpb.Player {
 
 	players, err := m.CurrentState()
 	if err != nil {
-		// In a real app, we should probably log this or return error.
-		// Keeping signature allowed means returning empty or panic.
-		// Assuming empty is safer for now.
 		fmt.Printf("Error reading current state: %v\n", err)
 		return []*ladderpb.Player{}
 	}
@@ -284,24 +248,24 @@ func (m *Model) AddPlayer(name, playerID string) (*ladderpb.Player, error) {
 	}
 
 	// 2. Prepare Payload
-	payload_bytes, _ := json.Marshal(AddPlayerPayload{
-		PlayerID: playerID,
+	payload := &storagepb.AddPlayerStorage{
+		PlayerId: playerID,
 		Name:     name,
-	})
+	}
 
 	// 3. Compute New State
-	newPlayers, err := m.applyTransactionLogic(TxAddPlayer, payload_bytes, currentPlayers)
+	newPlayers, err := m.applyTransactionLogic(storagepb.TransactionType_ADD_PLAYER, payload, currentPlayers)
 	if err != nil {
 		return nil, err
 	}
 
 	// 4. Create Transaction
-	tx := &Transaction{
-		ID:         uuid.New().String(),
-		Type:       TxAddPlayer,
-		Timestamp:  time.Now(),
-		Payload:    payload_bytes,
-		PlayerList: newPlayers,
+	tx := &storagepb.TransactionStorage{
+		Id:          uuid.New().String(),
+		Type:        storagepb.TransactionType_ADD_PLAYER,
+		TimestampMs: time.Now().UnixMilli(),
+		Payload:     &storagepb.TransactionStorage_AddPlayerPayload{AddPlayerPayload: payload},
+		PlayerList:  ladderToStorage(newPlayers),
 	}
 
 	// 5. Append
@@ -312,19 +276,21 @@ func (m *Model) AddPlayer(name, playerID string) (*ladderpb.Player, error) {
 	return newPlayers[len(newPlayers)-1], nil
 }
 
-func (m *Model) writeTransactionLocked(tx *Transaction) error {
+func (m *Model) writeTransactionLocked(tx *storagepb.TransactionStorage) error {
 	file, err := os.OpenFile(m.LogFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	data, err := json.Marshal(tx)
+	data, err := proto.Marshal(tx)
 	if err != nil {
 		return err
 	}
 
-	if _, err := file.Write(append(data, '\n')); err != nil {
+	encoded := base64.StdEncoding.EncodeToString(data)
+
+	if _, err := file.WriteString(encoded + "\n"); err != nil {
 		return err
 	}
 	return nil
@@ -340,19 +306,19 @@ func (m *Model) RemovePlayer(playerID string) error {
 		return err
 	}
 
-	payload_bytes, _ := json.Marshal(RemovePlayerPayload{PlayerID: playerID})
+	payload := &storagepb.RemovePlayerStorage{PlayerId: playerID}
 
-	newPlayers, err := m.applyTransactionLogic(TxRemovePlayer, payload_bytes, currentPlayers)
+	newPlayers, err := m.applyTransactionLogic(storagepb.TransactionType_REMOVE_PLAYER, payload, currentPlayers)
 	if err != nil {
 		return err
 	}
 
-	tx := &Transaction{
-		ID:         uuid.New().String(),
-		Type:       TxRemovePlayer,
-		Timestamp:  time.Now(),
-		Payload:    payload_bytes,
-		PlayerList: newPlayers,
+	tx := &storagepb.TransactionStorage{
+		Id:          uuid.New().String(),
+		Type:        storagepb.TransactionType_REMOVE_PLAYER,
+		TimestampMs: time.Now().UnixMilli(),
+		Payload:     &storagepb.TransactionStorage_RemovePlayerPayload{RemovePlayerPayload: payload},
+		PlayerList:  ladderToStorage(newPlayers),
 	}
 
 	return m.writeTransactionLocked(tx)
@@ -372,9 +338,9 @@ func (m *Model) AddMatchResult(challengerID, defenderID, winnerID string, setSco
 		return "", err
 	}
 
-	payloadSets := make([]SetScorePayload, len(setScores))
+	storageSetScores := make([]*storagepb.SetScoreStorage, len(setScores))
 	for i, s := range setScores {
-		payloadSets[i] = SetScorePayload{
+		storageSetScores[i] = &storagepb.SetScoreStorage{
 			ChallengerPoints:  s.ChallengerPoints,
 			DefenderPoints:    s.DefenderPoints,
 			ChallengerDefault: s.ChallengerDefault,
@@ -382,31 +348,31 @@ func (m *Model) AddMatchResult(challengerID, defenderID, winnerID string, setSco
 		}
 	}
 
-	payload_bytes, _ := json.Marshal(MatchResultPayload{
-		ChallengerID: challengerID,
-		DefenderID:   defenderID,
-		WinnerID:     winnerID,
-		SetScores:    payloadSets,
-	})
+	payload := &storagepb.MatchResultStorage{
+		ChallengerId: challengerID,
+		DefenderId:   defenderID,
+		WinnerId:     winnerID,
+		SetScores:    storageSetScores,
+	}
 
-	newPlayers, err := m.applyTransactionLogic(TxMatchResult, payload_bytes, currentPlayers)
+	newPlayers, err := m.applyTransactionLogic(storagepb.TransactionType_MATCH_RESULT, payload, currentPlayers)
 	if err != nil {
 		return "", err
 	}
 
-	tx := &Transaction{
-		ID:         uuid.New().String(),
-		Type:       TxMatchResult,
-		Timestamp:  time.Now(),
-		Payload:    payload_bytes,
-		PlayerList: newPlayers,
+	tx := &storagepb.TransactionStorage{
+		Id:          uuid.New().String(),
+		Type:        storagepb.TransactionType_MATCH_RESULT,
+		TimestampMs: time.Now().UnixMilli(),
+		Payload:     &storagepb.TransactionStorage_MatchResultPayload{MatchResultPayload: payload},
+		PlayerList:  ladderToStorage(newPlayers),
 	}
 
 	if err := m.writeTransactionLocked(tx); err != nil {
 		return "", err
 	}
 
-	return tx.ID, nil
+	return tx.Id, nil
 }
 
 // InvalidateMatchResult undoes a transaction by rebuilding the state without it
@@ -427,7 +393,7 @@ func (m *Model) InvalidateMatchResult(txID string) error {
 
 	scanner := backscanner.New(file, int(stat.Size()))
 
-	var replayStack []Transaction
+	var replayStack []*storagepb.TransactionStorage
 	var found bool
 	var currentPlayers []*ladderpb.Player
 
@@ -446,27 +412,29 @@ func (m *Model) InvalidateMatchResult(txID string) error {
 			continue
 		}
 
-		var t Transaction
-		if err := json.Unmarshal([]byte(line), &t); err != nil {
+		data, err := base64.StdEncoding.DecodeString(line)
+		if err != nil {
 			return err
 		}
 
-		if t.ID == txID {
-			if t.Type != TxMatchResult {
+		var t storagepb.TransactionStorage
+		if err := proto.Unmarshal(data, &t); err != nil {
+			return err
+		}
+
+		if t.Id == txID {
+			if t.Type != storagepb.TransactionType_MATCH_RESULT {
 				return fmt.Errorf("can only invalidate match results")
 			}
 			found = true
 
-			// We found the target.
-			// The state *before* this transaction is the PlayerList of the *previous* transaction
-			// (which is the *next* transaction in our backward scan).
-
-			// Peek the next valid line to get baseline state
+			// The player state *before* this transaction is the list from the previous transaction
+			// (which is next in backward scan)
 			for {
 				prevLine, _, err := scanner.Line()
 				if err != nil {
 					if err.Error() == "EOF" {
-						// Found at start of log, so base state is empty
+						// Start of log
 						currentPlayers = []*ladderpb.Player{}
 						break
 					}
@@ -477,49 +445,63 @@ func (m *Model) InvalidateMatchResult(txID string) error {
 					continue
 				}
 
-				var prevTx Transaction
-				if err := json.Unmarshal([]byte(prevLine), &prevTx); err != nil {
-					return fmt.Errorf("failed to parse previous transaction: %v", err)
+				prevData, err := base64.StdEncoding.DecodeString(prevLine)
+				if err != nil {
+					return err
 				}
-				currentPlayers = prevTx.PlayerList
+				var prevTx storagepb.TransactionStorage
+				if err := proto.Unmarshal(prevData, &prevTx); err != nil {
+					return err
+				}
+				currentPlayers = storageToLadder(prevTx.PlayerList)
 				break
 			}
 			break
 		}
 
-		// If not target, push to stack to replay later
-		// We push to front because we are reading backwards,
-		// but we want to replay in chronological order later.
-		// Actually, simpler: append, and then iterate replayStack in reverse.
-		replayStack = append(replayStack, t)
+		replayStack = append(replayStack, &t)
 	}
 
 	if !found {
 		return fmt.Errorf("transaction not found")
 	}
 
-	// 3. Replay
-	// Iterate replayStack in REVERSE (oldest to newest)
+	// 3. Replay (reverse of replayStack)
 	for i := len(replayStack) - 1; i >= 0; i-- {
 		t := replayStack[i]
-		newPlayers, err := m.applyTransactionLogic(t.Type, t.Payload, currentPlayers)
+
+		// Extract payload interface based on oneof
+		var payload interface{}
+		switch t.Type {
+		case storagepb.TransactionType_ADD_PLAYER:
+			payload = t.GetAddPlayerPayload()
+		case storagepb.TransactionType_REMOVE_PLAYER:
+			payload = t.GetRemovePlayerPayload()
+		case storagepb.TransactionType_MATCH_RESULT:
+			payload = t.GetMatchResultPayload()
+		case storagepb.TransactionType_INVALIDATE_MATCH:
+			// No state change logic for this, just pass through
+			continue
+		}
+
+		newPlayers, err := m.applyTransactionLogic(t.Type, payload, currentPlayers)
 		if err != nil {
-			return fmt.Errorf("replay failed at tx %s: %v", t.ID, err)
+			return fmt.Errorf("replay failed at tx %s: %v", t.Id, err)
 		}
 		currentPlayers = newPlayers
 	}
 
 	// 4. Create Invalidate Transaction
-	payload_bytes, _ := json.Marshal(InvalidateMatchPayload{
-		InvalidatedTransactionID: txID,
-	})
+	payload := &storagepb.InvalidateMatchStorage{
+		InvalidatedTransactionId: txID,
+	}
 
-	tx := &Transaction{
-		ID:         uuid.New().String(),
-		Type:       TxInvalidateMatch,
-		Timestamp:  time.Now(),
-		Payload:    payload_bytes,
-		PlayerList: currentPlayers,
+	tx := &storagepb.TransactionStorage{
+		Id:          uuid.New().String(),
+		Type:        storagepb.TransactionType_INVALIDATE_MATCH,
+		TimestampMs: time.Now().UnixMilli(),
+		Payload:     &storagepb.TransactionStorage_InvalidateMatchPayload{InvalidateMatchPayload: payload},
+		PlayerList:  ladderToStorage(currentPlayers),
 	}
 
 	return m.writeTransactionLocked(tx)
@@ -568,28 +550,33 @@ func (m *Model) GetRecentMatches(limit int32) ([]*ladderpb.MatchResult, error) {
 			continue
 		}
 
-		var t Transaction
-		if err := json.Unmarshal([]byte(line), &t); err != nil {
+		data, err := base64.StdEncoding.DecodeString(line)
+		if err != nil {
+			continue // skip bad lines
+		}
+
+		var t storagepb.TransactionStorage
+		if err := proto.Unmarshal(data, &t); err != nil {
 			continue
 		}
 
-		if t.Type == TxInvalidateMatch {
-			var p InvalidateMatchPayload
-			if err := json.Unmarshal(t.Payload, &p); err == nil {
-				invalidatedIds[p.InvalidatedTransactionID] = true
+		if t.Type == storagepb.TransactionType_INVALIDATE_MATCH {
+			inv := t.GetInvalidateMatchPayload()
+			if inv != nil {
+				invalidatedIds[inv.InvalidatedTransactionId] = true
 			}
-		} else if t.Type == TxMatchResult {
-			if invalidatedIds[t.ID] {
+		} else if t.Type == storagepb.TransactionType_MATCH_RESULT {
+			if invalidatedIds[t.Id] {
 				continue // Skip invalidated matches
 			}
 
-			var p MatchResultPayload
-			if err := json.Unmarshal(t.Payload, &p); err != nil {
+			mr := t.GetMatchResultPayload()
+			if mr == nil {
 				continue
 			}
 
-			setScores := make([]*ladderpb.SetScore, len(p.SetScores))
-			for j, s := range p.SetScores {
+			setScores := make([]*ladderpb.SetScore, len(mr.SetScores))
+			for j, s := range mr.SetScores {
 				setScores[j] = &ladderpb.SetScore{
 					ChallengerPoints:  s.ChallengerPoints,
 					DefenderPoints:    s.DefenderPoints,
@@ -599,12 +586,12 @@ func (m *Model) GetRecentMatches(limit int32) ([]*ladderpb.MatchResult, error) {
 			}
 
 			matches = append(matches, &ladderpb.MatchResult{
-				ChallengerId:  p.ChallengerID,
-				DefenderId:    p.DefenderID,
-				WinnerId:      p.WinnerID,
+				ChallengerId:  mr.ChallengerId,
+				DefenderId:    mr.DefenderId,
+				WinnerId:      mr.WinnerId,
 				SetScores:     setScores,
-				TimestampMs:   t.Timestamp.UnixMilli(),
-				TransactionId: t.ID,
+				TimestampMs:   t.TimestampMs,
+				TransactionId: t.Id,
 			})
 			count++
 		}

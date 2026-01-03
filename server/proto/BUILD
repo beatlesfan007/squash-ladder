@@ -1,4 +1,5 @@
 load("@rules_proto_grpc_go//:defs.bzl", "go_grpc_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
 # Expose the proto file for use in genrules
@@ -22,3 +23,17 @@ go_grpc_library(
     visibility = ["//visibility:public"],
 )
 
+# Storage Proto - Standalone, NO dependency on ladder_proto
+
+proto_library(
+    name = "storage_proto",
+    srcs = ["storage.proto"],
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "storage_go_proto",
+    importpath = "squash-ladder/server/gen/storage",
+    proto = ":storage_proto",
+    visibility = ["//visibility:public"],
+)

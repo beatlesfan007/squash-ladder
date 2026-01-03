@@ -37,6 +37,7 @@ use_repo(
     "com_github_improbable_eng_grpc_web",
     "com_github_icza_backscanner",
     "org_golang_google_grpc",
+    "org_golang_google_protobuf",
 )
 
 # Node.js toolchain configuration
