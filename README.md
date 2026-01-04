@@ -110,6 +110,39 @@ docker buildx build -t squash-ladder-client:latest -f client/Dockerfile client/
 kubectl apply -f k8s/
 ```
 
+### 3. Testing with Database
+
+The backend tests (`server:server_test`) require a PostgreSQL database.
+
+**Option 1: Automatic (Recommended)**
+Ensure Docker is running. The tests will automatically spin up a temporary PostgreSQL container using [Testcontainers](https://golang.testcontainers.org/).
+
+```bash
+bazel test //server:server_test
+```
+
+**Option 2: Manual (Faster)**
+Available if you want to reuse an existing database instance or debug the database state.
+
+1. Start Postgres:
+```bash
+docker run --rm -d --name squash-ladder-test-db \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=squash_ladder_test \
+  -p 5432:5432 postgres:15
+```
+
+2. Run Tests with `DATABASE_URL`:
+```bash
+bazel test //server:server_test \
+  --action_env=DATABASE_URL="postgres://postgres:password@localhost:5432/squash_ladder_test?sslmode=disable"
+```
+
+3. Cleanup:
+```bash
+docker stop squash-ladder-test-db
+```
+
 ## Running the Application
 
 Once deployed, the application will be available at:

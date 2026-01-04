@@ -1,16 +1,47 @@
 package server
 
 import (
+	"context"
 	"os"
 	"testing"
+	"time"
 
 	ladderpb "squash-ladder/server/gen/ladder"
+
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 func setupTestDB(t *testing.T) *Model {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		t.Skip("Skipping test: DATABASE_URL not set")
+		ctx := context.Background()
+		pgContainer, err := postgres.Run(ctx,
+			"postgres:15-alpine",
+			postgres.WithDatabase("squash_ladder_test"),
+			postgres.WithUsername("postgres"),
+			postgres.WithPassword("password"),
+			testcontainers.WithWaitStrategy(
+				wait.ForLog("database system is ready to accept connections").
+					WithOccurrence(2).
+					WithStartupTimeout(10*time.Second)),
+		)
+		if err != nil {
+			t.Fatalf("failed to start postgres container: %v", err)
+		}
+
+		t.Cleanup(func() {
+			if err := pgContainer.Terminate(ctx); err != nil {
+				t.Fatalf("failed to terminate container: %v", err)
+			}
+		})
+
+		dsn, err = pgContainer.ConnectionString(ctx, "sslmode=disable")
+		if err != nil {
+			t.Fatalf("failed to get connection string: %v", err)
+		}
+		t.Setenv("DATABASE_URL", dsn)
 	}
 
 	m, err := NewModel(dsn)
@@ -19,7 +50,7 @@ func setupTestDB(t *testing.T) *Model {
 	}
 
 	// Cleanup before test
-	if _, err := m.Db.Exec("TRUNCATE TABLE players, transactions"); err != nil {
+	if _, err := m.Db.Exec("TRUNCATE TABLE players, transactions, invitations CASCADE"); err != nil {
 		t.Fatalf("failed to truncate tables: %v", err)
 	}
 

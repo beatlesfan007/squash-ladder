@@ -50,6 +50,9 @@ go_test(
     embed = [":server_pkg"],
     deps = [
         "//server/proto:ladder_go_proto",
+        "@com_github_testcontainers_testcontainers_go//:go_default_library",
+        "@com_github_testcontainers_testcontainers_go//wait",
+        "@com_github_testcontainers_testcontainers_go_modules_postgres//:postgres",
     ],
 )
 
