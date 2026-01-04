@@ -9,6 +9,7 @@ const AddPlayerForm: React.FC<AddPlayerFormProps> = ({ onPlayerAdded }) => {
     const [name, setName] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [inviteLink, setInviteLink] = useState<string | null>(null)
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -17,7 +18,13 @@ const AddPlayerForm: React.FC<AddPlayerFormProps> = ({ onPlayerAdded }) => {
         try {
             setLoading(true)
             setError(null)
-            await ladderService.addPlayer(name)
+            setInviteLink(null)
+
+            const { inviteToken } = await ladderService.addPlayer(name)
+
+            const link = `${window.location.origin}/invite/${inviteToken}`
+            setInviteLink(link)
+
             setName('')
             onPlayerAdded()
         } catch (err) {
@@ -44,6 +51,16 @@ const AddPlayerForm: React.FC<AddPlayerFormProps> = ({ onPlayerAdded }) => {
                 </button>
             </form>
             {error && <p className="error-message">{error}</p>}
+
+            {inviteLink && (
+                <div className="invite-success">
+                    <p>Player added! Share this invite link:</p>
+                    <div className="invite-link-box">
+                        <input type="text" readOnly value={inviteLink} />
+                        <button onClick={() => navigator.clipboard.writeText(inviteLink)}>Copy</button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

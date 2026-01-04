@@ -68,6 +68,14 @@ if ! kubectl cluster-info &> /dev/null; then
     exit 1
 fi
 
+# Check for supabase-secrets secret
+if ! kubectl get secret supabase-secrets &> /dev/null; then
+    echo -e "${RED}Error: Secret 'supabase-secrets' not found.${NC}"
+    echo -e "Please create it using your Supabase Cloud credentials."
+    echo -e "You can use ${YELLOW}k8s/supabase-secrets.yaml.example${NC} as a template."
+    exit 1
+fi
+
 kubectl apply -f k8s/
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}  ✓ Manifests applied${NC}"

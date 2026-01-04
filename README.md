@@ -4,9 +4,10 @@ A web application for managing a squash ladder where players can view rankings a
 
 ## Architecture
 
-- **Backend**: gRPC server (Go) with gRPC-Web support - serves player ranking APIs via Protocol Buffers. Persists data to PostgreSQL.
-- **Frontend**: React TypeScript application - displays player rankings using gRPC-Web client
+- **Backend**: gRPC server (Go) with gRPC-Web support - serves player ranking APIs via Protocol Buffers. Persists data to Supabase Cloud (PostgreSQL).
+- **Frontend**: React TypeScript application - displays player rankings using gRPC-Web client and Supabase SDK for authentication.
 - **Build System**: Bazel for unified builds with automatic proto code generation using `rules_proto_grpc`
+- **Access Control**: Role-Based Access Control (RBAC) with automated Admin provisioning for the first user.
 
 ## Prerequisites
 
@@ -15,6 +16,44 @@ A web application for managing a squash ladder where players can view rankings a
 - Bazel 6.0 or later
 - Docker Desktop with Kubernetes enabled (Settings > Kubernetes > Enable Kubernetes)
 - Protocol Buffers: Proto code generation is handled automatically by Bazel
+
+## Supabase Cloud Setup
+
+This project requires a [Supabase Cloud](https://supabase.com/) project for authentication and database storage.
+
+### 1. Create a Supabase Project
+- Sign up at [supabase.com](https://supabase.com/) and create a new project.
+- [Getting Started Guide](https://supabase.com/docs/guides/getting-started)
+
+### 2. Database Configuration
+- Obtain your `DATABASE_URL` from **Project Settings > Database > Connection string > URI**.
+- [Database Connection Docs](https://supabase.com/docs/guides/database/connecting-to-postgres)
+
+### 3. Authentication Configuration
+- Enable **Magic Links** under **Authentication > Providers > Email**.
+- [Magic Link Auth Docs](https://supabase.com/docs/guides/auth/auth-email)
+
+### 4. API & Secret Keys
+- **Server Keys**: Get your `SUPABASE_JWT_SECRET` from **Project Settings > API > JWT Secret**.
+- **Client Keys**: Get your `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from **Project Settings > API**.
+- [API Key Docs](https://supabase.com/docs/guides/api/api-keys)
+
+### 5. Database Migrations
+- Apply the RBAC migration to your project:
+  ```bash
+  supabase db push
+  ```
+  (Requires [Supabase CLI](https://supabase.com/docs/guides/cli) installed and linked to your project).
+
+## Environment Setup
+
+1. **Server**: Copy `.env.example` to `.env` and fill in:
+   - `DATABASE_URL`
+   - `SUPABASE_JWT_SECRET`
+
+2. **Client**: Copy `client/.env.example` to `client/.env` and fill in:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
 
 ## Development Workflows
 
@@ -30,11 +69,11 @@ Fast feedback loop using a local Go process and Vite dev server.
 
 This script:
 1. Generates proto files (`scripts/gen_protos.sh`).
-2. Starts the Postgres Database via Docker Compose.
+2. Loads environment variables from `.env`.
 3. Starts the Go server via Bazel (`bazel run //server:server`).
 4. Starts the Vite client (`npm run dev`).
-5. Cleans up processes on exit (Ctrl+C).
 
+**Note**: You must have a Supabase Cloud project configured. See [Supabase Cloud Setup](#supabase-cloud-setup) for details.
 ### 2. Running Verification Tests
 
 To run the full suite of tests including integration tests (requires Postgres):
@@ -43,7 +82,7 @@ To run the full suite of tests including integration tests (requires Postgres):
 ./scripts/test_integration.sh
 ```
 
-This script handles starting the database, waiting for it to be ready, and running `go test`.
+This script runs the Go integration tests against the database specified in your `.env` file.
 
 ### 3. Kubernetes Deployment
 
@@ -79,6 +118,39 @@ docker buildx build -t squash-ladder-client:latest -f client/Dockerfile client/
 kubectl apply -f k8s/
 ```
 
+### 3. Testing with Database
+
+The backend tests (`server:server_test`) require a PostgreSQL database.
+
+**Option 1: Automatic (Recommended)**
+Ensure Docker is running. The tests will automatically spin up a temporary PostgreSQL container using [Testcontainers](https://golang.testcontainers.org/).
+
+```bash
+bazel test //server:server_test
+```
+
+**Option 2: Manual (Faster)**
+Available if you want to reuse an existing database instance or debug the database state.
+
+1. Start Postgres:
+```bash
+docker run --rm -d --name squash-ladder-test-db \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=squash_ladder_test \
+  -p 5432:5432 postgres:15
+```
+
+2. Run Tests with `DATABASE_URL`:
+```bash
+bazel test //server:server_test \
+  --action_env=DATABASE_URL="postgres://postgres:password@localhost:5432/squash_ladder_test?sslmode=disable"
+```
+
+3. Cleanup:
+```bash
+docker stop squash-ladder-test-db
+```
+
 ## Running the Application
 
 Once deployed, the application will be available at:
@@ -93,6 +165,16 @@ kubectl get pods
 kubectl get services
 ```
 
+## Access Control (RBAC)
+
+The application implements a Role-Based Access Control system powered by Supabase Custom Claims.
+
+- **Automated Admin Provisioning**: The very first user to sign up for the application is automatically granted the `admin` role via a database trigger.
+- **Player Role**: Users are assigned the `player` role once they successfully claim a player profile.
+- **Permissions**:
+  - **Admin**: Full access to management features (Add/Remove Player, Invalidate Match, Generate Invite).
+  - **Player**: Access to standard features (View Ladder, Add Match Result, View Recent Matches).
+- **Implementation**: Roles are stored in JWT custom claims (`app_metadata.roles`), allowing the server to enforce permissions without frequent database lookups.
 
 ## API Endpoints
 
@@ -131,13 +213,13 @@ squash-ladder/
 ## Production Roadmap
 
 ### Security
-- [ ] **Authentication**: Add Firebase authentication for secure player login
-- [ ] **Authorization**: Implement Role-Based Access Control (RBAC) with **Admin** (manage players/invites) and **User** (log matches) roles
+- [x] **Authentication**: Integrated Supabase Cloud for secure player login (Magic Link)
+- [x] **Authorization**: Role-Based Access Control (RBAC) with automated Admin provisioning
 - [ ] **Secret Management**: Move credentials from plain text YAML to Kubernetes Secrets
 - [ ] **TLS/SSL**: Enable SSL for database connections and secure ingress for the web client
 
 ### Features & Workflow
-- [ ] **Player Invites**: Mechanism to generate unique invite links for new players to link their account to a ladder profile
+- [x] **Player Invites**: Mechanism to generate unique invite links for new players to link their account to a ladder profile
 
 ### Infrastructure
 - [ ] **Persistent Storage**: Update Postgres deployment to use PersistentVolumeClaims (PVC) instead of `emptyDir`

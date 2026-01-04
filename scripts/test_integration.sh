@@ -13,23 +13,20 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo -e "${YELLOW}Running Integration Tests...${NC}"
 
-# Ensure DB is up
-echo -e "${BLUE}Starting PostgreSQL...${NC}"
-cd "$PROJECT_ROOT"
-docker-compose up -d db
+# Load environment variables from .env if it exists
+if [ -f .env ]; then
+    export $(cat .env | xargs)
+fi
 
-# Wait for DB to be ready
-echo -e "${BLUE}Waiting for Database to be ready...${NC}"
-until docker exec squash_ladder_db pg_isready -U postgres > /dev/null 2>&1; do
-  echo -n "."
-  sleep 1
-done
-echo ""
+if [ -z "$DATABASE_URL" ]; then
+    echo -e "${RED}Error: DATABASE_URL is not set.${NC}"
+    echo "Please set DATABASE_URL or configure it in .env"
+    exit 1
+fi
 
-# Create Test Database (idempotent)
-echo -e "${BLUE}Ensuring test database exists...${NC}"
-docker exec squash_ladder_db psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'squash_ladder_test'" | grep -q 1 || \
-docker exec squash_ladder_db psql -U postgres -c "CREATE DATABASE squash_ladder_test"
+echo -e "${YELLOW}WARNING: Integration tests will TRUNCATE tables 'players', 'transactions', and 'invitations'.${NC}"
+echo -e "${YELLOW}Press Ctrl+C to abort, or wait 3 seconds to continue...${NC}"
+sleep 3
 
 # Run tests
 echo -e "${BLUE}Running Go Tests...${NC}"

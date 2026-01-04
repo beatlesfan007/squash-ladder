@@ -5,6 +5,9 @@ import (
 	"fmt"
 
 	ladderpb "squash-ladder/server/gen/ladder"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // LadderService implements the LadderService gRPC service
@@ -20,8 +23,22 @@ func NewLadderService(m *Model) *LadderService {
 	}
 }
 
+// checkRole enforces role-based access control
+func (h *LadderService) checkRole(ctx context.Context, role string) error {
+	if _, err := GetUserIDFromContext(ctx); err != nil {
+		return err
+	}
+	if !HasRole(ctx, role) {
+		return status.Errorf(codes.PermissionDenied, "access denied: missing role %s", role)
+	}
+	return nil
+}
+
 // ListPlayers returns all players ordered by rank
 func (h *LadderService) ListPlayers(ctx context.Context, req *ladderpb.ListPlayersRequest) (*ladderpb.ListPlayersResponse, error) {
+	if err := h.checkRole(ctx, "player"); err != nil {
+		return nil, err
+	}
 	players := h.model.ListPlayers()
 	return &ladderpb.ListPlayersResponse{
 		Players: players,
@@ -30,15 +47,27 @@ func (h *LadderService) ListPlayers(ctx context.Context, req *ladderpb.ListPlaye
 
 // AddPlayer adds a new player
 func (h *LadderService) AddPlayer(ctx context.Context, req *ladderpb.AddPlayerRequest) (*ladderpb.AddPlayerResponse, error) {
+	if err := h.checkRole(ctx, "admin"); err != nil {
+		return nil, err
+	}
 	player, err := h.model.AddPlayer(req.Name, req.PlayerId)
 	if err != nil {
 		return nil, err
 	}
-	return &ladderpb.AddPlayerResponse{Player: player}, nil
+
+	token, err := h.model.CreateInvitation(player.Id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate invite token: %w", err)
+	}
+
+	return &ladderpb.AddPlayerResponse{Player: player, InviteToken: token}, nil
 }
 
 // RemovePlayer removes a player
 func (h *LadderService) RemovePlayer(ctx context.Context, req *ladderpb.RemovePlayerRequest) (*ladderpb.RemovePlayerResponse, error) {
+	if err := h.checkRole(ctx, "admin"); err != nil {
+		return nil, err
+	}
 	err := h.model.RemovePlayer(req.PlayerId)
 	if err != nil {
 		return &ladderpb.RemovePlayerResponse{Success: false}, err
@@ -116,6 +145,9 @@ func ValidateScore(setScores []*ladderpb.SetScore) (int, error) {
 
 // AddMatchResult records a match result
 func (h *LadderService) AddMatchResult(ctx context.Context, req *ladderpb.AddMatchResultRequest) (*ladderpb.AddMatchResultResponse, error) {
+	if err := h.checkRole(ctx, "player"); err != nil {
+		return nil, err
+	}
 	// Validate score
 	// Validate score covers defaults and calculates winner
 	winnerIdx, err := ValidateScore(req.SetScores)
@@ -141,6 +173,9 @@ func (h *LadderService) AddMatchResult(ctx context.Context, req *ladderpb.AddMat
 
 // InvalidateMatchResult invalidates a match result
 func (h *LadderService) InvalidateMatchResult(ctx context.Context, req *ladderpb.InvalidateMatchResultRequest) (*ladderpb.InvalidateMatchResultResponse, error) {
+	if err := h.checkRole(ctx, "admin"); err != nil {
+		return nil, err
+	}
 	err := h.model.InvalidateMatchResult(req.TransactionId)
 	if err != nil {
 		return &ladderpb.InvalidateMatchResultResponse{Success: false}, err
@@ -150,6 +185,9 @@ func (h *LadderService) InvalidateMatchResult(ctx context.Context, req *ladderpb
 
 // ListRecentMatches returns the last n matches
 func (h *LadderService) ListRecentMatches(ctx context.Context, req *ladderpb.ListRecentMatchesRequest) (*ladderpb.ListRecentMatchesResponse, error) {
+	if err := h.checkRole(ctx, "player"); err != nil {
+		return nil, err
+	}
 	matches, err := h.model.GetRecentMatches(req.Limit)
 	if err != nil {
 		return nil, err
@@ -157,4 +195,29 @@ func (h *LadderService) ListRecentMatches(ctx context.Context, req *ladderpb.Lis
 	return &ladderpb.ListRecentMatchesResponse{
 		Results: matches,
 	}, nil
+}
+
+// GenerateInvite creates an invitation for a player
+func (h *LadderService) GenerateInvite(ctx context.Context, req *ladderpb.GenerateInviteRequest) (*ladderpb.GenerateInviteResponse, error) {
+	if err := h.checkRole(ctx, "admin"); err != nil {
+		return nil, err
+	}
+	token, err := h.model.CreateInvitation(req.PlayerId)
+	if err != nil {
+		return nil, err
+	}
+	return &ladderpb.GenerateInviteResponse{Token: token}, nil
+}
+
+// ClaimPlayer links the current authenticated user to a player profile
+func (h *LadderService) ClaimPlayer(ctx context.Context, req *ladderpb.ClaimPlayerRequest) (*ladderpb.ClaimPlayerResponse, error) {
+	userID, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	playerID, err := h.model.ClaimPlayer(userID, req.Token)
+	if err != nil {
+		return &ladderpb.ClaimPlayerResponse{Success: false}, err
+	}
+	return &ladderpb.ClaimPlayerResponse{Success: true, PlayerId: playerID}, nil
 }
