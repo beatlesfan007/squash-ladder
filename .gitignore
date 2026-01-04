@@ -55,3 +55,6 @@ client/src/grpc/*.js
 client/src/grpc/*.d.ts
 
 server/gen/*
+
+# Agent rules
+.agent
