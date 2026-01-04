@@ -70,7 +70,7 @@ cd "$PROJECT_ROOT"
 
 # Load environment variables from .env if it exists
 if [ -f .env ]; then
-    export $(cat .env | xargs)
+    export $(sed '/^#/d' .env | xargs)
 fi
 
 if [ -z "$DATABASE_URL" ]; then
