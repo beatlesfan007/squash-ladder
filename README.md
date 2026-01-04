@@ -25,17 +25,19 @@ This project requires a [Supabase Cloud](https://supabase.com/) project for auth
 - Sign up at [supabase.com](https://supabase.com/) and create a new project.
 - [Getting Started Guide](https://supabase.com/docs/guides/getting-started)
 
-### 2. Database Configuration
+### 2. Link your Project
+To use your own project for development, link the CLI to your project reference:
+1. Login to Supabase: `supabase login`
+2. Link the project: `supabase link --project-ref <your-project-ref>`
+   - Get your **Project Ref** from **Project Settings > General > Reference ID**.
+
+### 3. Database Configuration
 - Obtain your `DATABASE_URL` from **Project Settings > Database > Connection string > URI**.
 - [Database Connection Docs](https://supabase.com/docs/guides/database/connecting-to-postgres)
 
-### 3. Authentication Configuration
-- Enable **Magic Links** under **Authentication > Providers > Email**.
-- [Magic Link Auth Docs](https://supabase.com/docs/guides/auth/auth-email)
-
 ### 4. API & Secret Keys
-- **Server Keys**: Get your `SUPABASE_JWT_SECRET` from **Project Settings > API > JWT Secret**.
-- **Client Keys**: Get your `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from **Project Settings > API**.
+- **Server Keys**: Get your `SUPABASE_JWT_SECRET` from **Project Settings > JWT Keys**.
+- **Client Keys**: Get your `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from **Project Settings > API Keys**.
 - [API Key Docs](https://supabase.com/docs/guides/api/api-keys)
 
 ### 5. Database Migrations
