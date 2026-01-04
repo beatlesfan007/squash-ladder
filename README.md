@@ -16,6 +16,37 @@ A web application for managing a squash ladder where players can view rankings a
 - Docker Desktop with Kubernetes enabled (Settings > Kubernetes > Enable Kubernetes)
 - Protocol Buffers: Proto code generation is handled automatically by Bazel
 
+## Supabase Cloud Setup
+
+This project requires a [Supabase Cloud](https://supabase.com/) project for authentication and database storage.
+
+### 1. Create a Supabase Project
+- Sign up at [supabase.com](https://supabase.com/) and create a new project.
+- [Getting Started Guide](https://supabase.com/docs/guides/getting-started)
+
+### 2. Database Configuration
+- Obtain your `DATABASE_URL` from **Project Settings > Database > Connection string > URI**.
+- [Database Connection Docs](https://supabase.com/docs/guides/database/connecting-to-postgres)
+
+### 3. Authentication Configuration
+- Enable **Magic Links** under **Authentication > Providers > Email**.
+- [Magic Link Auth Docs](https://supabase.com/docs/guides/auth/auth-email)
+
+### 4. API & Secret Keys
+- **Server Keys**: Get your `SUPABASE_JWT_SECRET` from **Project Settings > API > JWT Secret**.
+- **Client Keys**: Get your `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from **Project Settings > API**.
+- [API Key Docs](https://supabase.com/docs/guides/api/api-keys)
+
+## Environment Setup
+
+1. **Server**: Copy `.env.example` to `.env` and fill in:
+   - `DATABASE_URL`
+   - `SUPABASE_JWT_SECRET`
+
+2. **Client**: Copy `client/.env.example` to `client/.env` and fill in:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+
 ## Development Workflows
 
 We support two distinct workflows:
@@ -34,8 +65,7 @@ This script:
 3. Starts the Go server via Bazel (`bazel run //server:server`).
 4. Starts the Vite client (`npm run dev`).
 
-**Note**: You must have a Supabase Cloud project configured. Copy `.env.example` to `.env` and `client/.env.example` to `client/.env` and fill in your credentials.
-
+**Note**: You must have a Supabase Cloud project configured. See [Supabase Cloud Setup](#supabase-cloud-setup) for details.
 ### 2. Running Verification Tests
 
 To run the full suite of tests including integration tests (requires Postgres):
