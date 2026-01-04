@@ -22,6 +22,10 @@ func NewLadderService(m *Model) *LadderService {
 
 // ListPlayers returns all players ordered by rank
 func (h *LadderService) ListPlayers(ctx context.Context, req *ladderpb.ListPlayersRequest) (*ladderpb.ListPlayersResponse, error) {
+	_, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	players := h.model.ListPlayers()
 	return &ladderpb.ListPlayersResponse{
 		Players: players,
@@ -30,6 +34,11 @@ func (h *LadderService) ListPlayers(ctx context.Context, req *ladderpb.ListPlaye
 
 // AddPlayer adds a new player
 func (h *LadderService) AddPlayer(ctx context.Context, req *ladderpb.AddPlayerRequest) (*ladderpb.AddPlayerResponse, error) {
+	_, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	player, err := h.model.AddPlayer(req.Name, req.PlayerId)
 	if err != nil {
 		return nil, err
@@ -39,11 +48,45 @@ func (h *LadderService) AddPlayer(ctx context.Context, req *ladderpb.AddPlayerRe
 
 // RemovePlayer removes a player
 func (h *LadderService) RemovePlayer(ctx context.Context, req *ladderpb.RemovePlayerRequest) (*ladderpb.RemovePlayerResponse, error) {
-	err := h.model.RemovePlayer(req.PlayerId)
+	_, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		return &ladderpb.RemovePlayerResponse{Success: false}, err
+	}
+
+	err = h.model.RemovePlayer(req.PlayerId)
 	if err != nil {
 		return &ladderpb.RemovePlayerResponse{Success: false}, err
 	}
 	return &ladderpb.RemovePlayerResponse{Success: true}, nil
+}
+
+// GenerateInvite creates a one-time use token
+func (h *LadderService) GenerateInvite(ctx context.Context, req *ladderpb.GenerateInviteRequest) (*ladderpb.GenerateInviteResponse, error) {
+	_, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := h.model.CreateInvitation(req.PlayerId)
+	if err != nil {
+		return nil, err
+	}
+	return &ladderpb.GenerateInviteResponse{Token: token}, nil
+}
+
+// ClaimPlayer links the authenticated user to a player profile
+func (h *LadderService) ClaimPlayer(ctx context.Context, req *ladderpb.ClaimPlayerRequest) (*ladderpb.ClaimPlayerResponse, error) {
+	userID, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	playerID, err := h.model.ClaimPlayer(userID, req.Token)
+	if err != nil {
+		return &ladderpb.ClaimPlayerResponse{Success: false}, err
+	}
+
+	return &ladderpb.ClaimPlayerResponse{Success: true, PlayerId: playerID}, nil
 }
 
 // ValidateScore validates squash scoring rules and returns the winner (1 or 2)
@@ -116,6 +159,11 @@ func ValidateScore(setScores []*ladderpb.SetScore) (int, error) {
 
 // AddMatchResult records a match result
 func (h *LadderService) AddMatchResult(ctx context.Context, req *ladderpb.AddMatchResultRequest) (*ladderpb.AddMatchResultResponse, error) {
+	_, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		return &ladderpb.AddMatchResultResponse{Success: false}, err
+	}
+
 	// Validate score
 	// Validate score covers defaults and calculates winner
 	winnerIdx, err := ValidateScore(req.SetScores)
@@ -141,7 +189,12 @@ func (h *LadderService) AddMatchResult(ctx context.Context, req *ladderpb.AddMat
 
 // InvalidateMatchResult invalidates a match result
 func (h *LadderService) InvalidateMatchResult(ctx context.Context, req *ladderpb.InvalidateMatchResultRequest) (*ladderpb.InvalidateMatchResultResponse, error) {
-	err := h.model.InvalidateMatchResult(req.TransactionId)
+	_, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		return &ladderpb.InvalidateMatchResultResponse{Success: false}, err
+	}
+
+	err = h.model.InvalidateMatchResult(req.TransactionId)
 	if err != nil {
 		return &ladderpb.InvalidateMatchResultResponse{Success: false}, err
 	}
@@ -150,6 +203,11 @@ func (h *LadderService) InvalidateMatchResult(ctx context.Context, req *ladderpb
 
 // ListRecentMatches returns the last n matches
 func (h *LadderService) ListRecentMatches(ctx context.Context, req *ladderpb.ListRecentMatchesRequest) (*ladderpb.ListRecentMatchesResponse, error) {
+	_, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	matches, err := h.model.GetRecentMatches(req.Limit)
 	if err != nil {
 		return nil, err

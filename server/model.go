@@ -47,7 +47,8 @@ func initSchema(db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS players (
 			id VARCHAR(255) PRIMARY KEY,
 			name VARCHAR(255) NOT NULL,
-			rank INTEGER NOT NULL
+			rank INTEGER NOT NULL,
+			user_id VARCHAR(255)
 		);`,
 		`CREATE TABLE IF NOT EXISTS transactions (
 			id VARCHAR(255) PRIMARY KEY,
@@ -56,6 +57,11 @@ func initSchema(db *sql.DB) error {
 			payload BYTEA NOT NULL,
 			player_ranks BYTEA NOT NULL,
 			is_invalidated BOOLEAN DEFAULT FALSE
+		);`,
+		`CREATE TABLE IF NOT EXISTS invitations (
+			token VARCHAR(255) PRIMARY KEY,
+			player_id VARCHAR(255) REFERENCES players(id) ON DELETE CASCADE,
+			expires_at BIGINT NOT NULL
 		);`,
 	}
 
@@ -652,4 +658,62 @@ func (m *Model) GetRecentMatches(limit int32) ([]*ladderpb.MatchResult, error) {
 		})
 	}
 	return matches, nil
+}
+
+// CreateInvitation generates a secure token for claiming a player
+func (m *Model) CreateInvitation(playerID string) (string, error) {
+	// Generate random token
+	token := uuid.New().String()
+	// Expires in 48 hours
+	expiresAt := time.Now().Add(48 * time.Hour).UnixMilli()
+
+	if _, err := m.Db.Exec("INSERT INTO invitations (token, player_id, expires_at) VALUES ($1, $2, $3)", token, playerID, expiresAt); err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// ClaimPlayer links a user to a player using a token
+func (m *Model) ClaimPlayer(userID, token string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var playerID string
+	var expiresAt int64
+
+	// 1. Verify Token
+	err := m.Db.QueryRow("SELECT player_id, expires_at FROM invitations WHERE token = $1", token).Scan(&playerID, &expiresAt)
+	if err == sql.ErrNoRows {
+		return "", fmt.Errorf("invalid invitation token")
+	}
+	if err != nil {
+		return "", err
+	}
+
+	if time.Now().UnixMilli() > expiresAt {
+		return "", fmt.Errorf("invitation expired")
+	}
+
+	// 2. Check if player is already claimed?
+	// It's possible the player was claimed by someone else meanwhile, though unlikely if invite is unique.
+	// But let's check.
+	var existingUserID sql.NullString
+	if err := m.Db.QueryRow("SELECT user_id FROM players WHERE id = $1", playerID).Scan(&existingUserID); err != nil {
+		return "", err
+	}
+	if existingUserID.Valid && existingUserID.String != "" {
+		return "", fmt.Errorf("player already claimed")
+	}
+
+	// 3. Link User
+	if _, err := m.Db.Exec("UPDATE players SET user_id = $1 WHERE id = $2", userID, playerID); err != nil {
+		return "", err
+	}
+
+	// 4. Delete Invitation
+	if _, err := m.Db.Exec("DELETE FROM invitations WHERE token = $1", token); err != nil {
+		log.Printf("Failed to delete used invitation: %v", err)
+	}
+
+	return playerID, nil
 }

@@ -81,6 +81,23 @@ message ListRecentMatchesResponse {
   repeated MatchResult results = 1;
 }
 
+message GenerateInviteRequest {
+  string player_id = 1;
+}
+
+message GenerateInviteResponse {
+  string token = 1;
+}
+
+message ClaimPlayerRequest {
+  string token = 1;
+}
+
+message ClaimPlayerResponse {
+  bool success = 1;
+  string player_id = 2; // Return the ID of the claimed player
+}
+
 // LadderService provides access to the squash ladder
 service LadderService {
   // ListPlayers returns all players ordered by rank
@@ -100,4 +117,10 @@ service LadderService {
 
   // ListRecentMatches returns the last n matches
   rpc ListRecentMatches(ListRecentMatchesRequest) returns (ListRecentMatchesResponse);
+
+  // GenerateInvite creates a one-time use token to claim a player profile
+  rpc GenerateInvite(GenerateInviteRequest) returns (GenerateInviteResponse);
+
+  // ClaimPlayer links the authenticated user to a player profile using a token
+  rpc ClaimPlayer(ClaimPlayerRequest) returns (ClaimPlayerResponse);
 }

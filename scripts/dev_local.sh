@@ -68,28 +68,38 @@ echo -e "\n${YELLOW}[3/4] Generating proto files...${NC}"
 # 4. Start Servers
 echo -e "\n${BLUE}[4/4] Starting servers...${NC}"
 
-# Start Postgres
-echo -e "Starting PostgreSQL..."
-docker-compose up -d db
+
+echo -e "Starting Supabase Stack..."
+cd "$PROJECT_ROOT/infrastructure/supabase"
+docker compose up -d
+cd "$PROJECT_ROOT"
 
 # Wait for DB to be ready
-until docker exec squash_ladder_db pg_isready -U postgres > /dev/null 2>&1; do
+echo -n "Waiting for Database..."
+until docker exec supabase-db pg_isready -U postgres > /dev/null 2>&1; do
   echo -n "."
   sleep 1
 done
 echo ""
 
 if [ "$CLEAN_DB" = true ]; then
-    echo -e "${YELLOW}Cleaning database...${NC}"
-    # Terminate existing connections first
-    docker exec squash_ladder_db psql -U postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'squash_ladder' AND pid <> pg_backend_pid();" > /dev/null 2>&1 || true
-    # Drop and recreate
-    docker exec squash_ladder_db dropdb -U postgres --if-exists squash_ladder
-    docker exec squash_ladder_db createdb -U postgres squash_ladder
+    echo -e "${YELLOW}Cleaning database (Full Reset)...${NC}"
+    cd "$PROJECT_ROOT/infrastructure/supabase"
+    docker compose down -v
+    docker compose up -d
+    cd "$PROJECT_ROOT"
+    
+    # Wait again
+    echo -n "Waiting for Database after reset..."
+    until docker exec supabase-db pg_isready -U postgres > /dev/null 2>&1; do
+        echo -n "."
+        sleep 1
+    done
+    echo ""
     echo -e "${GREEN}  ✓ Database reset${NC}"
 fi
 
-echo -e "${GREEN}  ✓ PostgreSQL started${NC}"
+echo -e "${GREEN}  ✓ Supabase started${NC}"
 
 # Cleanup function
 cleanup() {
@@ -100,8 +110,18 @@ trap cleanup EXIT
 
 # Start Go Server (using Bazel for dependency management)
 echo -e "Starting Go Server (logs: /tmp/squash-ladder-server.log)..."
+# Load .env for server
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
+
+DATABASE_URL="${DATABASE_URL:-postgres://postgres:password@localhost:5432/postgres?sslmode=disable}"
+SUPABASE_JWT_SECRET="${SUPABASE_JWT_SECRET:-your-dummy-secret}"
+
 cd "$PROJECT_ROOT"
-DATABASE_URL="postgres://postgres:password@localhost:5432/squash_ladder?sslmode=disable" bazel run //server:server > /tmp/squash-ladder-server.log 2>&1 &
+bazel run //server:server --action_env=DATABASE_URL="$DATABASE_URL" --action_env=SUPABASE_JWT_SECRET="$SUPABASE_JWT_SECRET" > /tmp/squash-ladder-server.log 2>&1 &
 SERVER_PID=$!
 
 # Wait for server to be somewhat ready (not perfect check, but good UX)

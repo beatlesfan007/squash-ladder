@@ -26,6 +26,8 @@ go.work.sum
 
 # env file
 .env
+client/.env
+infrastructure/supabase/.env
 
 # Editor/IDE
 .idea/
@@ -58,3 +60,6 @@ server/gen/*
 
 # Agent rules
 .agent
+
+# Supabase volumes
+infrastructure/supabase/volumes/

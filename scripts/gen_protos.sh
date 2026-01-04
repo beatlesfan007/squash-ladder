@@ -46,7 +46,7 @@ if [ $? -eq 0 ]; then
     sed -i '' 's/readStringRequireUtf8/readString/g' client/src/grpc/ladder_pb.js
 
     # Append ES exports
-    echo "export const { Player, ListPlayersRequest, ListPlayersResponse, AddPlayerRequest, AddPlayerResponse, RemovePlayerRequest, RemovePlayerResponse, SetScore, MatchResult, AddMatchResultRequest, AddMatchResultResponse, InvalidateMatchResultRequest, InvalidateMatchResultResponse, ListRecentMatchesRequest, ListRecentMatchesResponse } = proto.ladder;" >> client/src/grpc/ladder_pb.js
+    echo "export const { Player, ListPlayersRequest, ListPlayersResponse, AddPlayerRequest, AddPlayerResponse, RemovePlayerRequest, RemovePlayerResponse, SetScore, MatchResult, AddMatchResultRequest, AddMatchResultResponse, InvalidateMatchResultRequest, InvalidateMatchResultResponse, ListRecentMatchesRequest, ListRecentMatchesResponse, GenerateInviteRequest, GenerateInviteResponse, ClaimPlayerRequest, ClaimPlayerResponse } = proto.ladder;" >> client/src/grpc/ladder_pb.js
     echo "export const { LadderServiceClient } = proto.ladder;" >> client/src/grpc/ladder_grpc_web_pb.js
     
     echo -e "${GREEN}  ✓ Generated files prepared${NC}"

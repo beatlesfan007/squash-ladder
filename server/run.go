@@ -28,8 +28,10 @@ func Run(cfg Config) error {
 		return fmt.Errorf("failed to initialize ladder: %v", err)
 	}
 
-	// Create gRPC server
-	grpcServer := grpc.NewServer()
+	// Create gRPC server with AuthInterceptor
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(AuthInterceptor),
+	)
 
 	// Create and register ladder service
 	ladderService := NewLadderService(ladderModel)

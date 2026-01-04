@@ -19,7 +19,7 @@ func setupTestDB(t *testing.T) *Model {
 	}
 
 	// Cleanup before test
-	if _, err := m.Db.Exec("TRUNCATE TABLE players, transactions"); err != nil {
+	if _, err := m.Db.Exec("TRUNCATE TABLE players, transactions, invitations CASCADE"); err != nil {
 		t.Fatalf("failed to truncate tables: %v", err)
 	}
 
