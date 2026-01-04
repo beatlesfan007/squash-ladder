@@ -128,9 +128,32 @@ squash-ladder/
 └── scripts/              # Utility scripts
 ```
 
-## Next Steps
+## Production Roadmap
 
-- [ ] Add Firebase authentication
-- [x] Replace mock data with database (PostgreSQL)
-- [x] Add match logging functionality
-- [x] Implement ladder movement logic
+### Security
+- [ ] **Authentication**: Add Firebase authentication for secure player login
+- [ ] **Authorization**: Implement Role-Based Access Control (RBAC) with **Admin** (manage players/invites) and **User** (log matches) roles
+- [ ] **Secret Management**: Move credentials from plain text YAML to Kubernetes Secrets
+- [ ] **TLS/SSL**: Enable SSL for database connections and secure ingress for the web client
+
+### Features & Workflow
+- [ ] **Player Invites**: Mechanism to generate unique invite links for new players to link their account to a ladder profile
+
+### Infrastructure
+- [ ] **Persistent Storage**: Update Postgres deployment to use PersistentVolumeClaims (PVC) instead of `emptyDir`
+- [ ] **Resource Management**: Define CPU/Memory requests and limits in Kubernetes manifests
+- [ ] **Health Checks**: Implement Liveness and Readiness probes
+- [ ] **Ingress**: Configure an Ingress Controller with cert-manager for HTTPS
+
+### DevOps & CI/CD
+- [ ] **CI Pipeline**: Set up GitHub Actions for automated testing and linting
+- [ ] **CD Pipeline**: Automate Docker image building and deployment
+- [ ] **Versioning**: Use Git SHA tagging for Docker images instead of `latest`
+
+### Database
+- [ ] **Migrations**: Implement a proper migration tool (e.g., `golang-migrate`) instead of `IF NOT EXISTS` checks
+- [ ] **Backup**: Establish a database backup and restore strategy
+
+### Observability
+- [ ] **Structured Logging**: Replace standard logging with structured JSON logging (e.g., `zap` or `slog`)
+- [ ] **Metrics**: Expose Prometheus metrics for monitoring server performance
