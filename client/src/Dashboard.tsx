@@ -12,7 +12,7 @@ function Dashboard() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [refreshTrigger, setRefreshTrigger] = useState(0)
-    const { user } = useAuth()
+    const { user, isAdmin } = useAuth()
 
     useEffect(() => {
         fetchPlayers()
@@ -61,7 +61,7 @@ function Dashboard() {
                 <div className="dashboard-grid">
                     <div className="left-column">
                         <section className="add-player-section">
-                            <AddPlayerForm onPlayerAdded={handleDataUpdate} />
+                            {isAdmin && <AddPlayerForm onPlayerAdded={handleDataUpdate} />}
                         </section>
                         <section className="ladder-section">
                             {loading ? <p>Loading ladder...</p> : <PlayerList players={mappedPlayers} />}

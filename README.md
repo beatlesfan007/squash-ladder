@@ -7,6 +7,7 @@ A web application for managing a squash ladder where players can view rankings a
 - **Backend**: gRPC server (Go) with gRPC-Web support - serves player ranking APIs via Protocol Buffers. Persists data to Supabase Cloud (PostgreSQL).
 - **Frontend**: React TypeScript application - displays player rankings using gRPC-Web client and Supabase SDK for authentication.
 - **Build System**: Bazel for unified builds with automatic proto code generation using `rules_proto_grpc`
+- **Access Control**: Role-Based Access Control (RBAC) with automated Admin provisioning for the first user.
 
 ## Prerequisites
 
@@ -36,6 +37,13 @@ This project requires a [Supabase Cloud](https://supabase.com/) project for auth
 - **Server Keys**: Get your `SUPABASE_JWT_SECRET` from **Project Settings > API > JWT Secret**.
 - **Client Keys**: Get your `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from **Project Settings > API**.
 - [API Key Docs](https://supabase.com/docs/guides/api/api-keys)
+
+### 5. Database Migrations
+- Apply the RBAC migration to your project:
+  ```bash
+  supabase db push
+  ```
+  (Requires [Supabase CLI](https://supabase.com/docs/guides/cli) installed and linked to your project).
 
 ## Environment Setup
 
@@ -157,6 +165,16 @@ kubectl get pods
 kubectl get services
 ```
 
+## Access Control (RBAC)
+
+The application implements a Role-Based Access Control system powered by Supabase Custom Claims.
+
+- **Automated Admin Provisioning**: The very first user to sign up for the application is automatically granted the `admin` role via a database trigger.
+- **Player Role**: Users are assigned the `player` role once they successfully claim a player profile.
+- **Permissions**:
+  - **Admin**: Full access to management features (Add/Remove Player, Invalidate Match, Generate Invite).
+  - **Player**: Access to standard features (View Ladder, Add Match Result, View Recent Matches).
+- **Implementation**: Roles are stored in JWT custom claims (`app_metadata.roles`), allowing the server to enforce permissions without frequent database lookups.
 
 ## API Endpoints
 
@@ -196,7 +214,7 @@ squash-ladder/
 
 ### Security
 - [x] **Authentication**: Integrated Supabase Cloud for secure player login (Magic Link)
-- [ ] **Authorization**: Implement Role-Based Access Control (RBAC) with **Admin** (manage players/invites) and **User** (log matches) roles
+- [x] **Authorization**: Role-Based Access Control (RBAC) with automated Admin provisioning
 - [ ] **Secret Management**: Move credentials from plain text YAML to Kubernetes Secrets
 - [ ] **TLS/SSL**: Enable SSL for database connections and secure ingress for the web client
 

@@ -20,6 +20,7 @@ type authContextKey string
 
 const (
 	userIDKey    authContextKey = "userID"
+	userRolesKey authContextKey = "userRoles"
 	authErrorKey authContextKey = "authError"
 )
 
@@ -59,6 +60,7 @@ func AuthInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, h
 
 	var authErr error
 	var userID string
+	var roles []string
 
 	// 2. Extract Token
 	md, ok := metadata.FromIncomingContext(ctx)
@@ -114,6 +116,17 @@ func AuthInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, h
 				goto Continue
 			}
 			userID = sub
+
+			// 5. Extract Roles from app_metadata
+			if appMeta, ok := claims["app_metadata"].(map[string]interface{}); ok {
+				if rolesClaim, ok := appMeta["roles"].([]interface{}); ok {
+					for _, r := range rolesClaim {
+						if rStr, ok := r.(string); ok {
+							roles = append(roles, rStr)
+						}
+					}
+				}
+			}
 		} else {
 			authErr = status.Error(codes.Unauthenticated, "Invalid token claims")
 			goto Continue
@@ -126,6 +139,7 @@ Continue:
 		newCtx = context.WithValue(ctx, authErrorKey, authErr)
 	} else if userID != "" {
 		newCtx = context.WithValue(ctx, userIDKey, userID)
+		newCtx = context.WithValue(newCtx, userRolesKey, roles)
 	}
 
 	return handler(newCtx, req)
@@ -144,4 +158,18 @@ func GetUserIDFromContext(ctx context.Context) (string, error) {
 		return "", status.Error(codes.Unauthenticated, "No user ID in context")
 	}
 	return userID, nil
+}
+
+// HasRole checks if the authenticated user has the specified role
+func HasRole(ctx context.Context, role string) bool {
+	roles, ok := ctx.Value(userRolesKey).([]string)
+	if !ok {
+		return false
+	}
+	for _, r := range roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
 }

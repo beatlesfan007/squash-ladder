@@ -708,6 +708,46 @@ func (m *Model) ClaimPlayer(userID, token string) (string, error) {
 		return "", err
 	}
 
+	// 3.5 Grant 'player' Role
+	// Append "player" role if not present.
+	// We use jsonb logic: (current_roles - "player") || "player" effectively ensures it's there?
+	// Or just a simple append-if-not-exists.
+	// SQL approach:
+	// UPDATE auth.users
+	// SET raw_app_meta_data = jsonb_set(
+	//   COALESCE(raw_app_meta_data, '{}'::jsonb),
+	//   '{roles}',
+	//   (
+	//      SELECT jsonb_agg(DISTINCT elem)
+	//      FROM jsonb_array_elements(
+	//        COALESCE(raw_app_meta_data->'roles', '[]'::jsonb) || '["player"]'::jsonb
+	//      ) elem
+	//   )
+	// )
+	// WHERE id = $1;
+
+	// Note: jsonb_set replaces the value. We calculate the new array.
+	// The subquery (SELECT jsonb_agg...) creates a set of unique roles including "player".
+	// This ensures we keep "admin" if it was there (from trigger) and add "player".
+
+	roleUpdateQuery := `
+		UPDATE auth.users
+		SET raw_app_meta_data = jsonb_set(
+			COALESCE(raw_app_meta_data, '{}'::jsonb),
+			'{roles}',
+			(
+				SELECT jsonb_agg(DISTINCT elem)
+				FROM jsonb_array_elements(
+					COALESCE(raw_app_meta_data->'roles', '[]'::jsonb) || '["player"]'::jsonb
+				) elem
+			)
+		)
+		WHERE id = $1`
+
+	if _, err := m.Db.Exec(roleUpdateQuery, userID); err != nil {
+		log.Printf("Failed to update user roles: %v", err)
+	}
+
 	// 4. Delete Invitation
 	if _, err := m.Db.Exec("DELETE FROM invitations WHERE token = $1", token); err != nil {
 		log.Printf("Failed to delete used invitation: %v", err)

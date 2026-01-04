@@ -5,6 +5,9 @@ import (
 	"fmt"
 
 	ladderpb "squash-ladder/server/gen/ladder"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // LadderService implements the LadderService gRPC service
@@ -20,9 +23,20 @@ func NewLadderService(m *Model) *LadderService {
 	}
 }
 
+// checkRole enforces role-based access control
+func (h *LadderService) checkRole(ctx context.Context, role string) error {
+	if _, err := GetUserIDFromContext(ctx); err != nil {
+		return err
+	}
+	if !HasRole(ctx, role) {
+		return status.Errorf(codes.PermissionDenied, "access denied: missing role %s", role)
+	}
+	return nil
+}
+
 // ListPlayers returns all players ordered by rank
 func (h *LadderService) ListPlayers(ctx context.Context, req *ladderpb.ListPlayersRequest) (*ladderpb.ListPlayersResponse, error) {
-	if _, err := GetUserIDFromContext(ctx); err != nil {
+	if err := h.checkRole(ctx, "player"); err != nil {
 		return nil, err
 	}
 	players := h.model.ListPlayers()
@@ -33,7 +47,7 @@ func (h *LadderService) ListPlayers(ctx context.Context, req *ladderpb.ListPlaye
 
 // AddPlayer adds a new player
 func (h *LadderService) AddPlayer(ctx context.Context, req *ladderpb.AddPlayerRequest) (*ladderpb.AddPlayerResponse, error) {
-	if _, err := GetUserIDFromContext(ctx); err != nil {
+	if err := h.checkRole(ctx, "admin"); err != nil {
 		return nil, err
 	}
 	player, err := h.model.AddPlayer(req.Name, req.PlayerId)
@@ -51,7 +65,7 @@ func (h *LadderService) AddPlayer(ctx context.Context, req *ladderpb.AddPlayerRe
 
 // RemovePlayer removes a player
 func (h *LadderService) RemovePlayer(ctx context.Context, req *ladderpb.RemovePlayerRequest) (*ladderpb.RemovePlayerResponse, error) {
-	if _, err := GetUserIDFromContext(ctx); err != nil {
+	if err := h.checkRole(ctx, "admin"); err != nil {
 		return nil, err
 	}
 	err := h.model.RemovePlayer(req.PlayerId)
@@ -131,7 +145,7 @@ func ValidateScore(setScores []*ladderpb.SetScore) (int, error) {
 
 // AddMatchResult records a match result
 func (h *LadderService) AddMatchResult(ctx context.Context, req *ladderpb.AddMatchResultRequest) (*ladderpb.AddMatchResultResponse, error) {
-	if _, err := GetUserIDFromContext(ctx); err != nil {
+	if err := h.checkRole(ctx, "player"); err != nil {
 		return nil, err
 	}
 	// Validate score
@@ -159,7 +173,7 @@ func (h *LadderService) AddMatchResult(ctx context.Context, req *ladderpb.AddMat
 
 // InvalidateMatchResult invalidates a match result
 func (h *LadderService) InvalidateMatchResult(ctx context.Context, req *ladderpb.InvalidateMatchResultRequest) (*ladderpb.InvalidateMatchResultResponse, error) {
-	if _, err := GetUserIDFromContext(ctx); err != nil {
+	if err := h.checkRole(ctx, "admin"); err != nil {
 		return nil, err
 	}
 	err := h.model.InvalidateMatchResult(req.TransactionId)
@@ -171,7 +185,7 @@ func (h *LadderService) InvalidateMatchResult(ctx context.Context, req *ladderpb
 
 // ListRecentMatches returns the last n matches
 func (h *LadderService) ListRecentMatches(ctx context.Context, req *ladderpb.ListRecentMatchesRequest) (*ladderpb.ListRecentMatchesResponse, error) {
-	if _, err := GetUserIDFromContext(ctx); err != nil {
+	if err := h.checkRole(ctx, "player"); err != nil {
 		return nil, err
 	}
 	matches, err := h.model.GetRecentMatches(req.Limit)
@@ -185,7 +199,7 @@ func (h *LadderService) ListRecentMatches(ctx context.Context, req *ladderpb.Lis
 
 // GenerateInvite creates an invitation for a player
 func (h *LadderService) GenerateInvite(ctx context.Context, req *ladderpb.GenerateInviteRequest) (*ladderpb.GenerateInviteResponse, error) {
-	if _, err := GetUserIDFromContext(ctx); err != nil {
+	if err := h.checkRole(ctx, "admin"); err != nil {
 		return nil, err
 	}
 	token, err := h.model.CreateInvitation(req.PlayerId)

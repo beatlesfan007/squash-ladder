@@ -6,27 +6,39 @@ interface AuthContextType {
     session: Session | null
     user: User | null
     loading: boolean
+    isAdmin: boolean
 }
 
-const AuthContext = createContext<AuthContextType>({ session: null, user: null, loading: true })
+const AuthContext = createContext<AuthContextType>({ session: null, user: null, loading: true, isAdmin: false })
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null)
     const [session, setSession] = useState<Session | null>(null)
     const [loading, setLoading] = useState(true)
+    const [isAdmin, setIsAdmin] = useState(false)
+
+    const checkAdmin = (user: User | null) => {
+        if (!user) return false
+        const roles = user.app_metadata?.roles as string[] | undefined
+        return roles?.includes('admin') ?? false
+    }
 
     useEffect(() => {
         // Check active sessions
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session)
-            setUser(session?.user ?? null)
+            const u = session?.user ?? null
+            setUser(u)
+            setIsAdmin(checkAdmin(u))
             setLoading(false)
         })
 
         // Listen for changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session)
-            setUser(session?.user ?? null)
+            const u = session?.user ?? null
+            setUser(u)
+            setIsAdmin(checkAdmin(u))
             setLoading(false)
         })
 
@@ -34,7 +46,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [])
 
     return (
-        <AuthContext.Provider value={{ session, user, loading }}>
+        <AuthContext.Provider value={{ session, user, loading, isAdmin }}>
             {!loading && children}
         </AuthContext.Provider>
     )
