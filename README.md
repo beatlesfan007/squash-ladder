@@ -217,14 +217,12 @@ squash-ladder/
 ### Security
 - [x] **Authentication**: Integrated Supabase Cloud for secure player login (Magic Link)
 - [x] **Authorization**: Role-Based Access Control (RBAC) with automated Admin provisioning
-- [ ] **Secret Management**: Move credentials from plain text YAML to Kubernetes Secrets
-- [ ] **TLS/SSL**: Enable SSL for database connections and secure ingress for the web client
+- [x] **Secret Management**: Move credentials from plain text YAML to Kubernetes Secrets
 
 ### Features & Workflow
 - [x] **Player Invites**: Mechanism to generate unique invite links for new players to link their account to a ladder profile
 
 ### Infrastructure
-- [ ] **Persistent Storage**: Update Postgres deployment to use PersistentVolumeClaims (PVC) instead of `emptyDir`
 - [ ] **Resource Management**: Define CPU/Memory requests and limits in Kubernetes manifests
 - [ ] **Health Checks**: Implement Liveness and Readiness probes
 - [ ] **Ingress**: Configure an Ingress Controller with cert-manager for HTTPS
