@@ -17,11 +17,12 @@ go_library(
         "@com_github_google_uuid//:uuid",
         "@com_github_improbable_eng_grpc_web//go/grpcweb",
         "@com_github_lib_pq//:pq",
+        "@com_github_micahparks_keyfunc_v3//:keyfunc",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//metadata",
         "@org_golang_google_grpc//status",
-        "@org_golang_google_protobuf//proto:go_default_library",
+        "@org_golang_google_protobuf//proto",
     ],
 )
 
@@ -44,6 +45,7 @@ go_binary(
 go_test(
     name = "server_test",
     srcs = [
+        "model_auth_test.go",
         "model_test.go",
         "service_test.go",
     ],

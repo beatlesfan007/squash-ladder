@@ -44,7 +44,13 @@ func (h *LadderService) AddPlayer(ctx context.Context, req *ladderpb.AddPlayerRe
 	if err != nil {
 		return nil, err
 	}
-	return &ladderpb.AddPlayerResponse{Player: player}, nil
+
+	token, err := h.model.CreateInvitation(player.Id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate invite token: %w", err)
+	}
+
+	return &ladderpb.AddPlayerResponse{Player: player, InviteToken: token}, nil
 }
 
 // RemovePlayer removes a player

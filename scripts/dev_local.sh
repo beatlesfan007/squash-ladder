@@ -73,6 +73,11 @@ if [ -f .env ]; then
     export $(sed '/^#/d' .env | xargs)
 fi
 
+# Load environment variables from client/.env if it exists (for VITE vars)
+if [ -f "client/.env" ]; then
+    export $(sed '/^#/d' client/.env | xargs)
+fi
+
 if [ -z "$DATABASE_URL" ]; then
     echo -e "${RED}Error: DATABASE_URL is not set. Please configure it in .env${NC}"
     exit 1
@@ -82,7 +87,11 @@ if [ -z "$SUPABASE_JWT_SECRET" ]; then
     exit 1
 fi
 
-bazel run //server:server --action_env=DATABASE_URL="$DATABASE_URL" --action_env=SUPABASE_JWT_SECRET="$SUPABASE_JWT_SECRET" > /tmp/squash-ladder-server.log 2>&1 &
+if [ -z "$SUPABASE_URL" ] && [ -n "$VITE_SUPABASE_URL" ]; then
+    export SUPABASE_URL="$VITE_SUPABASE_URL"
+fi
+
+bazel run //server:server --action_env=DATABASE_URL="$DATABASE_URL" --action_env=SUPABASE_JWT_SECRET="$SUPABASE_JWT_SECRET" --action_env=SUPABASE_URL="$SUPABASE_URL" > /tmp/squash-ladder-server.log 2>&1 &
 SERVER_PID=$!
 
 # Wait for server to start

@@ -20,10 +20,9 @@ const AddPlayerForm: React.FC<AddPlayerFormProps> = ({ onPlayerAdded }) => {
             setError(null)
             setInviteLink(null)
 
-            const player = await ladderService.addPlayer(name)
-            const token = await ladderService.generateInvite(player.getId())
+            const { inviteToken } = await ladderService.addPlayer(name)
 
-            const link = `${window.location.origin}/invite/${token}`
+            const link = `${window.location.origin}/invite/${inviteToken}`
             setInviteLink(link)
 
             setName('')

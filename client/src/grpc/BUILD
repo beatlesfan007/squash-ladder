@@ -1,5 +1,5 @@
 load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
-load("@rules_proto_grpc_js//:defs.bzl", "js_proto_library", "js_grpc_web_library")
+load("@rules_proto_grpc_js//:defs.bzl", "js_grpc_web_library", "js_proto_library")
 
 # Generate JavaScript/TypeScript code from proto files using rules_proto_grpc
 # js_proto_library generates both JavaScript and TypeScript definitions
@@ -21,15 +21,15 @@ js_grpc_web_library(
 # TypeScript project that uses the generated proto files
 ts_project(
     name = "grpc_ts",
-    tsconfig = "//client:tsconfig.json",
     srcs = [
         "ladderService.ts",
     ],
+    tsconfig = "//client:tsconfig.json",
+    visibility = ["//visibility:public"],
     deps = [
-        ":ladder_proto_ts",
         ":ladder_grpc_web",
+        ":ladder_proto_ts",
         "@npm//@improbable-eng/grpc-web",
         "@npm//google-protobuf",
     ],
-    visibility = ["//visibility:public"],
 )

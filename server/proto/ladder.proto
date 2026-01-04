@@ -26,6 +26,7 @@ message AddPlayerRequest {
 
 message AddPlayerResponse {
   Player player = 1;
+  string invite_token = 2;
 }
 
 message RemovePlayerRequest {

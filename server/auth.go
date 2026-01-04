@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
+	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -21,15 +23,39 @@ const (
 	authErrorKey authContextKey = "authError"
 )
 
+var (
+	jwksSet  keyfunc.Keyfunc
+	jwksOnce sync.Once
+)
+
 // AuthInterceptor verifies the JWT token from Supabase
 // It does NOT block requests, but populates the context with either the userID or an error.
 // Individual handlers must call GetUserIDFromContext to enforce authentication.
 func AuthInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-	// 1. Get Secret
+	// 1. Get Configuration
 	jwtSecret := os.Getenv("SUPABASE_JWT_SECRET")
-	if jwtSecret == "" {
-		return nil, status.Error(codes.Internal, "Missing JWT Secret configuration")
+	supabaseURL := os.Getenv("SUPABASE_URL")
+
+	if jwtSecret == "" && supabaseURL == "" {
+		return nil, status.Error(codes.Internal, "Missing JWT Secret or Supabase URL configuration")
 	}
+
+	// Initialize JWKS if Supabase URL is available
+	jwksOnce.Do(func() {
+		if supabaseURL != "" {
+			fmt.Printf("Initializing JWKS from Supabase URL: %s\n", supabaseURL)
+			jwksURL := fmt.Sprintf("%s/auth/v1/.well-known/jwks.json", supabaseURL)
+			var err error
+			jwksSet, err = keyfunc.NewDefault([]string{jwksURL})
+			if err != nil {
+				fmt.Printf("Failed to initialize JWKS: %v\n", err)
+			} else {
+				fmt.Println("JWKS initialized successfully")
+			}
+		} else {
+			fmt.Println("SUPABASE_URL not set, JWKS initialization skipped")
+		}
+	})
 
 	var authErr error
 	var userID string
@@ -56,10 +82,23 @@ func AuthInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, h
 
 		// 3. Parse and Validate Token
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			// Check if it's HMAC (HS256)
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); ok {
+				if jwtSecret == "" {
+					return nil, fmt.Errorf("HS256 signing method used but SUPABASE_JWT_SECRET not configured")
+				}
+				return []byte(jwtSecret), nil
 			}
-			return []byte(jwtSecret), nil
+
+			// Check if it's ECDSA (ES256)
+			if _, ok := token.Method.(*jwt.SigningMethodECDSA); ok {
+				if jwksSet == nil {
+					return nil, fmt.Errorf("ES256 signing method used but JWKS not initialized (check SUPABASE_URL)")
+				}
+				return jwksSet.Keyfunc(token)
+			}
+
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		})
 
 		if err != nil {

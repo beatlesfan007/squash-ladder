@@ -54,7 +54,7 @@ export const ladderService = {
     })
   },
 
-  addPlayer: async (name: string): Promise<Player> => {
+  addPlayer: async (name: string): Promise<{ player: Player, inviteToken: string }> => {
     const metadata = await getMetadata()
     return new Promise((resolve, reject) => {
       const request = new AddPlayerRequest()
@@ -65,8 +65,9 @@ export const ladderService = {
           reject(new Error(`gRPC error: ${err.message || 'Unknown error'}`))
         } else if (response) {
           const player = response.getPlayer()
+          const inviteToken = response.getInviteToken()
           if (player) {
-            resolve(player)
+            resolve({ player, inviteToken })
           } else {
             reject(new Error('No player returned in response'))
           }

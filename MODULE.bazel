@@ -35,6 +35,7 @@ use_repo(
     "com_github_google_uuid",
     "com_github_improbable_eng_grpc_web",
     "com_github_lib_pq",
+    "com_github_micahparks_keyfunc_v3",
     "com_github_testcontainers_testcontainers_go",
     "com_github_testcontainers_testcontainers_go_modules_postgres",
     "org_golang_google_grpc",
