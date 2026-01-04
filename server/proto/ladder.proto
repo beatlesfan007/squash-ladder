@@ -100,4 +100,27 @@ service LadderService {
 
   // ListRecentMatches returns the last n matches
   rpc ListRecentMatches(ListRecentMatchesRequest) returns (ListRecentMatchesResponse);
+
+  // GenerateInvite creates an invitation for a player
+  rpc GenerateInvite(GenerateInviteRequest) returns (GenerateInviteResponse);
+
+  // ClaimPlayer links the current authenticated user to a player profile
+  rpc ClaimPlayer(ClaimPlayerRequest) returns (ClaimPlayerResponse);
+}
+
+message GenerateInviteRequest {
+  string player_id = 1;
+}
+
+message GenerateInviteResponse {
+  string token = 1;
+}
+
+message ClaimPlayerRequest {
+  string token = 1;
+}
+
+message ClaimPlayerResponse {
+  bool success = 1;
+  string player_id = 2;
 }

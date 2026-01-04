@@ -4,8 +4,8 @@ A web application for managing a squash ladder where players can view rankings a
 
 ## Architecture
 
-- **Backend**: gRPC server (Go) with gRPC-Web support - serves player ranking APIs via Protocol Buffers. Persists data to PostgreSQL.
-- **Frontend**: React TypeScript application - displays player rankings using gRPC-Web client
+- **Backend**: gRPC server (Go) with gRPC-Web support - serves player ranking APIs via Protocol Buffers. Persists data to Supabase Cloud (PostgreSQL).
+- **Frontend**: React TypeScript application - displays player rankings using gRPC-Web client and Supabase SDK for authentication.
 - **Build System**: Bazel for unified builds with automatic proto code generation using `rules_proto_grpc`
 
 ## Prerequisites
@@ -30,10 +30,11 @@ Fast feedback loop using a local Go process and Vite dev server.
 
 This script:
 1. Generates proto files (`scripts/gen_protos.sh`).
-2. Starts the Postgres Database via Docker Compose.
+2. Loads environment variables from `.env`.
 3. Starts the Go server via Bazel (`bazel run //server:server`).
 4. Starts the Vite client (`npm run dev`).
-5. Cleans up processes on exit (Ctrl+C).
+
+**Note**: You must have a Supabase Cloud project configured. Copy `.env.example` to `.env` and `client/.env.example` to `client/.env` and fill in your credentials.
 
 ### 2. Running Verification Tests
 
@@ -43,7 +44,7 @@ To run the full suite of tests including integration tests (requires Postgres):
 ./scripts/test_integration.sh
 ```
 
-This script handles starting the database, waiting for it to be ready, and running `go test`.
+This script runs the Go integration tests against the database specified in your `.env` file.
 
 ### 3. Kubernetes Deployment
 
@@ -131,13 +132,13 @@ squash-ladder/
 ## Production Roadmap
 
 ### Security
-- [ ] **Authentication**: Add Firebase authentication for secure player login
+- [x] **Authentication**: Integrated Supabase Cloud for secure player login (Magic Link)
 - [ ] **Authorization**: Implement Role-Based Access Control (RBAC) with **Admin** (manage players/invites) and **User** (log matches) roles
 - [ ] **Secret Management**: Move credentials from plain text YAML to Kubernetes Secrets
 - [ ] **TLS/SSL**: Enable SSL for database connections and secure ingress for the web client
 
 ### Features & Workflow
-- [ ] **Player Invites**: Mechanism to generate unique invite links for new players to link their account to a ladder profile
+- [x] **Player Invites**: Mechanism to generate unique invite links for new players to link their account to a ladder profile
 
 ### Infrastructure
 - [ ] **Persistent Storage**: Update Postgres deployment to use PersistentVolumeClaims (PVC) instead of `emptyDir`

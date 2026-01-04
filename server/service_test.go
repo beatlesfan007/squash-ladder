@@ -158,7 +158,8 @@ func TestLadderService_AddMatchResult(t *testing.T) {
 	svc := NewLadderService(m)
 
 	// Valid result
-	resp, err := svc.AddMatchResult(context.Background(), &ladderpb.AddMatchResultRequest{
+	ctx := context.WithValue(context.Background(), userIDKey, "test-user")
+	resp, err := svc.AddMatchResult(ctx, &ladderpb.AddMatchResultRequest{
 		ChallengerId: "alice",
 		DefenderId:   "bob",
 		WinnerId:     "bob",
@@ -177,7 +178,8 @@ func TestLadderService_AddMatchResult(t *testing.T) {
 	}
 
 	// Inconsistent winner
-	_, err = svc.AddMatchResult(context.Background(), &ladderpb.AddMatchResultRequest{
+	ctx = context.WithValue(context.Background(), userIDKey, "test-user")
+	_, err = svc.AddMatchResult(ctx, &ladderpb.AddMatchResultRequest{
 		ChallengerId: "alice",
 		DefenderId:   "bob",
 		WinnerId:     "alice", // Alice didn't win according to scores
@@ -204,7 +206,8 @@ func TestLadderService_ListRecentMatches(t *testing.T) {
 	})
 
 	svc := NewLadderService(m)
-	resp, err := svc.ListRecentMatches(context.Background(), &ladderpb.ListRecentMatchesRequest{Limit: 10})
+	ctx := context.WithValue(context.Background(), userIDKey, "test-user")
+	resp, err := svc.ListRecentMatches(ctx, &ladderpb.ListRecentMatchesRequest{Limit: 10})
 	if err != nil {
 		t.Fatalf("ListRecentMatches failed: %v", err)
 	}

@@ -22,7 +22,15 @@ spec:
         - containerPort: 8080
         env:
         - name: DATABASE_URL
-          value: "postgres://postgres:password@postgres:5432/squash_ladder?sslmode=disable"
+          valueFrom:
+            secretKeyRef:
+              name: supabase-secrets
+              key: DATABASE_URL
+        - name: SUPABASE_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: supabase-secrets
+              key: SUPABASE_JWT_SECRET
 ---
 apiVersion: v1
 kind: Service
