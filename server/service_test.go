@@ -216,3 +216,36 @@ func TestLadderService_ListRecentMatches(t *testing.T) {
 		t.Errorf("expected 1 match, got %d", len(resp.Results))
 	}
 }
+
+func TestLadderService_AddPlayer_Bootstrap(t *testing.T) {
+	m := setupTestDB(t)
+	svc := NewLadderService(m)
+
+	// 1. First player: No Auth -> Should Success (Bootstrap)
+	_, err := svc.AddPlayer(context.Background(), &ladderpb.AddPlayerRequest{
+		Name:     "Admin",
+		PlayerId: "admin",
+	})
+	if err != nil {
+		t.Errorf("Expected bootstrap AddPlayer to succeed, got error: %v", err)
+	}
+
+	// 2. Second player: No Auth -> Should Fail
+	_, err = svc.AddPlayer(context.Background(), &ladderpb.AddPlayerRequest{
+		Name:     "Hacker",
+		PlayerId: "hacker",
+	})
+	if err == nil {
+		t.Error("Expected AddPlayer to fail without auth when ladder is not empty")
+	}
+
+	// 3. Second player: With Auth -> Should Success
+	ctx := context.WithValue(context.Background(), userIDKey, "some-user-id")
+	_, err = svc.AddPlayer(ctx, &ladderpb.AddPlayerRequest{
+		Name:     "Valid User",
+		PlayerId: "valid_user",
+	})
+	if err != nil {
+		t.Errorf("Expected authenticated AddPlayer to succeed, got error: %v", err)
+	}
+}

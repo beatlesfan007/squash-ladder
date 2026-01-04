@@ -33,8 +33,12 @@ func (h *LadderService) ListPlayers(ctx context.Context, req *ladderpb.ListPlaye
 
 // AddPlayer adds a new player
 func (h *LadderService) AddPlayer(ctx context.Context, req *ladderpb.AddPlayerRequest) (*ladderpb.AddPlayerResponse, error) {
-	if _, err := GetUserIDFromContext(ctx); err != nil {
-		return nil, err
+	_, err := GetUserIDFromContext(ctx)
+	if err != nil {
+		// Allow adding the first player without authentication (bootstrap)
+		if len(h.model.ListPlayers()) > 0 {
+			return nil, err
+		}
 	}
 	player, err := h.model.AddPlayer(req.Name, req.PlayerId)
 	if err != nil {
