@@ -60,9 +60,11 @@ function Dashboard() {
 
                 <div className="dashboard-grid">
                     <div className="left-column">
-                        <section className="add-player-section">
-                            {isAdmin && <AddPlayerForm onPlayerAdded={handleDataUpdate} />}
-                        </section>
+                        {isAdmin && (
+                            <section className="add-player-section">
+                                <AddPlayerForm onPlayerAdded={handleDataUpdate} />
+                            </section>
+                        )}
                         <section className="ladder-section">
                             {loading ? <p>Loading ladder...</p> : <PlayerList players={mappedPlayers} />}
                         </section>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext'
 import { ladderService } from '../grpc/ladderService'
+import { supabase } from '../supabase'
 
 export default function Invite() {
     const { token } = useParams<{ token: string }>()
@@ -24,6 +25,8 @@ export default function Invite() {
             setClaiming(true)
             const response = await ladderService.claimPlayer(token)
             if (response.getSuccess()) {
+                // Refresh session to get new roles
+                await supabase.auth.refreshSession()
                 alert('Successfully claimed player profile!')
                 navigate('/')
             } else {
