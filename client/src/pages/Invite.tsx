@@ -13,8 +13,8 @@ export default function Invite() {
 
     useEffect(() => {
         if (!authLoading && !user) {
-            // Store token in session storage to resume after login
-            sessionStorage.setItem('pending_invite_token', token || '')
+            // Store token in local storage to resume after login (persists across tabs)
+            localStorage.setItem('pending_invite_token', token || '')
             navigate('/login')
         }
     }, [user, authLoading, token, navigate])

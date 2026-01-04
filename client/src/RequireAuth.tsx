@@ -12,5 +12,12 @@ export default function RequireAuth({ children }: { children: JSX.Element }) {
         return <Navigate to="/login" replace />
     }
 
+    // Check for pending invite redirect
+    const pendingToken = localStorage.getItem('pending_invite_token')
+    if (pendingToken) {
+        localStorage.removeItem('pending_invite_token')
+        return <Navigate to={`/invite/${pendingToken}`} replace />
+    }
+
     return children
 }
